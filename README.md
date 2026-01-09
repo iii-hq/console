@@ -68,87 +68,65 @@ Options:
 
 ## Quick Start
 
+### 1. Install iii Engine
+
 ```bash
-# 1. Build and start the iii engine
-# Clone and build from source
+curl -fsSL https://raw.githubusercontent.com/MotiaDev/iii-engine/main/install.sh | sh
+```
+
+Or build from source:
+
+```bash
 git clone https://github.com/MotiaDev/iii-engine.git
 cd iii-engine
 cargo build --release
+```
+
+### 2. Start iii Engine
+
+```bash
+# From iii-engine directory
 ./target/release/iii --config config.yaml
+```
 
-# 2. In another terminal, run the console
+### 3. Start Console
+
+In a **separate terminal**:
+
+```bash
 npx iii-console
-
-# 3. Open http://localhost:3113
 ```
 
-**Note**: If your engine version includes DevTools, enable it in `config.yaml`:
+Open http://localhost:3113
 
-```yaml
-modules:
-  - class: modules::devtools::DevToolsModule
-    config:
-      api_prefix: "/_console"
-      metrics_interval_seconds: 30
-```
+**That's it!** Each component runs independently in its own terminal.
 
-**Note**: If DevTools module is not available in your engine version, the console will use management API endpoints instead. Some features may be limited.
+## Testing with iii-example
 
-## Testing with Local iii-example
+This repo includes `iii-example` for testing. Each component runs independently:
 
-If you have `iii-example` in your workspace at `iii-console/iii-example`, you can test the console with it:
-
-**Important**: 
-- If your `config.yaml` includes `modules::devtools::DevToolsModule` but it's not available, remove that module entry from the config first.
-- The example uses the SDK from `iii-engine/packages/node/iii` via file path.
-
-**Setup (one-time):**
-
+**Terminal 1 - Engine:**
 ```bash
-# From iii-console directory
-cd iii-engine/packages/node/iii
-pnpm install
-pnpm build
-
-# Install example dependencies
-cd ../../../iii-example
-pnpm install
-```
-
-**Running:**
-
-```bash
-# Terminal 1: Start the iii engine (from iii-console directory)
-cd iii-engine
+cd /path/to/iii-engine
 cargo build --release
-# Config path is relative to iii-engine directory
-cargo run --release -- --config ../iii-example/config.yaml
+cargo run --release -- --config /path/to/iii-console/iii-example/config.yaml
+```
 
-# Terminal 2: Start the example app (from iii-console directory)
-cd iii-example
-# Make sure dependencies are installed first
+**Terminal 2 - Example App:**
+```bash
+cd iii-console/iii-example
 pnpm install
 pnpm start
-
-# Terminal 3: Start the console (from iii-console directory)
-cd ..
-npx iii-console
-# or if port 3113 is busy:
-npx iii-console -p 8080
-
-# Open http://localhost:3113 (or http://localhost:8080 if using custom port)
 ```
 
-**Troubleshooting**: If `pnpm start` fails with "Missing script start", make sure you're in the `iii-example` directory and dependencies are installed (`pnpm install`).
+**Terminal 3 - Console:**
+```bash
+npx iii-console
+```
 
-The example app provides:
-- REST API endpoints (`/todo`, `/stats`, `/alerts`)
-- Event-driven workflows
-- Cron jobs (auto-archive, daily summaries)
-- Real-time streams
-- Structured logging
-
-You'll see all of these in the console dashboard!
+**Prerequisites:**
+- Redis running on `localhost:6379`
+- Update `iii-example/package.json` SDK path if `iii-engine` is elsewhere
 
 ## Features
 

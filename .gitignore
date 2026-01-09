@@ -43,8 +43,11 @@ next-env.d.ts
 # iii-engine (local copy, not part of this repo)
 /iii-engine/
 
-# example app (local testing, not part of this repo)
-/iii-example/
+# example app - exclude node_modules but include source
+/iii-example/node_modules/
+/iii-example/.next/
+/iii-example/dist/
+/iii-example/build/
 
 # pnpm
 .pnpm-store/
