@@ -277,7 +277,7 @@ III_ENGINE_HOST=192.168.1.100 npx iii-console
 
 ## License
 
-MIT License - Part of the iii engine project.
+Apache License 2.0 - Part of the iii engine project.
 
 ## Links
 

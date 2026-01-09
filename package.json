@@ -11,7 +11,7 @@
     "debugging"
   ],
   "author": "MotiaDev",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/MotiaDev/iii-console.git"
