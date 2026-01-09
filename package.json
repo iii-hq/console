@@ -1,0 +1,64 @@
+{
+  "name": "iii-console",
+  "version": "0.1.0",
+  "description": "Developer console for the iii engine - real-time monitoring and debugging",
+  "keywords": [
+    "iii",
+    "iii-engine",
+    "developer-console",
+    "devtools",
+    "monitoring",
+    "debugging"
+  ],
+  "author": "MotiaDev",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MotiaDev/iii-console.git"
+  },
+  "homepage": "https://github.com/MotiaDev/iii-console#readme",
+  "bugs": {
+    "url": "https://github.com/MotiaDev/iii-console/issues"
+  },
+  "bin": {
+    "iii-console": "./bin/cli.js"
+  },
+  "files": [
+    "bin",
+    ".next/standalone",
+    ".next/static",
+    "public"
+  ],
+  "scripts": {
+    "dev": "next dev -p 3113",
+    "build": "next build",
+    "start": "next start -p 3113",
+    "lint": "eslint",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.562.0",
+    "next": "16.1.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "swr": "^2.3.8",
+    "tailwind-merge": "^3.4.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.1",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

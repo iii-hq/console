@@ -1,0 +1,53 @@
+# Source files (we ship the built standalone)
+src/
+packages/
+
+# Development configuration
+*.config.ts
+*.config.mjs
+tsconfig.json
+eslint.config.mjs
+postcss.config.mjs
+next-env.d.ts
+
+# Development dependencies and caches
+node_modules/
+.next/cache/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test files
+__tests__/
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+coverage/
+
+# Documentation (kept in repo, not in package)
+docs/
+*.md
+!README.md
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment files
+.env
+.env.*
+
+# Build artifacts not needed for production
+.turbo/
