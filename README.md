@@ -69,15 +69,86 @@ Options:
 ## Quick Start
 
 ```bash
-# 1. Install and start the iii engine
-curl -fsSL https://raw.githubusercontent.com/MotiaDev/iii-engine/main/install.sh | sh
-iii --config config.yaml
+# 1. Build and start the iii engine
+# Clone and build from source
+git clone https://github.com/MotiaDev/iii-engine.git
+cd iii-engine
+cargo build --release
+./target/release/iii --config config.yaml
 
 # 2. In another terminal, run the console
 npx iii-console
 
 # 3. Open http://localhost:3113
 ```
+
+**Note**: If your engine version includes DevTools, enable it in `config.yaml`:
+
+```yaml
+modules:
+  - class: modules::devtools::DevToolsModule
+    config:
+      api_prefix: "/_console"
+      metrics_interval_seconds: 30
+```
+
+**Note**: If DevTools module is not available in your engine version, the console will use management API endpoints instead. Some features may be limited.
+
+## Testing with Local iii-example
+
+If you have `iii-example` in your workspace at `iii-console/iii-example`, you can test the console with it:
+
+**Important**: 
+- If your `config.yaml` includes `modules::devtools::DevToolsModule` but it's not available, remove that module entry from the config first.
+- The example uses the SDK from `iii-engine/packages/node/iii` via file path.
+
+**Setup (one-time):**
+
+```bash
+# From iii-console directory
+cd iii-engine/packages/node/iii
+pnpm install
+pnpm build
+
+# Install example dependencies
+cd ../../../iii-example
+pnpm install
+```
+
+**Running:**
+
+```bash
+# Terminal 1: Start the iii engine (from iii-console directory)
+cd iii-engine
+cargo build --release
+# Config path is relative to iii-engine directory
+cargo run --release -- --config ../iii-example/config.yaml
+
+# Terminal 2: Start the example app (from iii-console directory)
+cd iii-example
+# Make sure dependencies are installed first
+pnpm install
+pnpm start
+
+# Terminal 3: Start the console (from iii-console directory)
+cd ..
+npx iii-console
+# or if port 3113 is busy:
+npx iii-console -p 8080
+
+# Open http://localhost:3113 (or http://localhost:8080 if using custom port)
+```
+
+**Troubleshooting**: If `pnpm start` fails with "Missing script start", make sure you're in the `iii-example` directory and dependencies are installed (`pnpm install`).
+
+The example app provides:
+- REST API endpoints (`/todo`, `/stats`, `/alerts`)
+- Event-driven workflows
+- Cron jobs (auto-archive, daily summaries)
+- Real-time streams
+- Structured logging
+
+You'll see all of these in the console dashboard!
 
 ## Features
 
@@ -240,6 +311,42 @@ pnpm run lint
 
 ## Troubleshooting
 
+### Port Already in Use (EADDRINUSE)
+
+If you see `Error: listen EADDRINUSE: address already in use :::3113`:
+
+```bash
+# Option 1: Use a different port
+npx iii-console -p 8080
+
+# Option 2: Find and kill the process using port 3113
+lsof -ti:3113 | xargs kill -9
+
+# Option 3: Check what's using the port
+lsof -i:3113
+```
+
+### DevToolsModule Not Found
+
+If you see `Unknown module class: modules::devtools::DevToolsModule`:
+
+**Status**: The DevTools module may not be implemented yet in your iii-engine version. The console can still work with the management API endpoints.
+
+**Workaround**: Remove the DevTools module from your config and use the management API instead:
+
+```yaml
+modules:
+  # Remove this if DevToolsModule doesn't exist:
+  # - class: modules::devtools::DevToolsModule
+  
+  # Keep these modules:
+  - class: modules::streams::StreamModule
+  - class: modules::api::RestApiModule
+  - class: modules::observability::LoggingModule
+```
+
+**Note**: Some console features may be limited without DevTools. The console will fall back to management API endpoints where available.
+
 ### Console shows "No user components registered"
 
 Make sure you have an application registered using the iii SDK. The engine needs to have user functions/triggers defined.
@@ -255,6 +362,7 @@ Make sure you have an application registered using the iii SDK. The engine needs
 1. Verify DevTools module is enabled in your iii engine config
 2. Check that port 3111 is accessible: `curl http://localhost:3111/_console/status`
 3. Ensure the Streams module is running on port 31112
+4. Make sure the engine was built with DevTools support
 
 ### Connecting to Remote Engine
 

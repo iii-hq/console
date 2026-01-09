@@ -1,8 +1,12 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
   // Enable standalone output for npm package distribution
   output: 'standalone',
+  
+  // Set output file tracing root to avoid workspace detection issues
+  outputFileTracingRoot: path.join(__dirname),
   
   reactStrictMode: true,
   

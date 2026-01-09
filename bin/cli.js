@@ -83,14 +83,34 @@ if (fs.existsSync(standaloneServerPath)) {
     }
   });
 } else {
-  // Development fallback: Use next start (requires .next build)
+  // Development fallback: Check if standalone build exists, otherwise use next dev
+  const standalonePath = path.join(packageRoot, '.next', 'standalone');
+  const standaloneServerPath = path.join(standalonePath, 'server.js');
   const nextBin = path.join(packageRoot, 'node_modules', '.bin', 'next');
   
-  if (fs.existsSync(path.join(packageRoot, '.next'))) {
+  if (fs.existsSync(standaloneServerPath)) {
+    // Standalone build exists - use it
     console.log(`\n  iii-console starting on http://localhost:${port}\n`);
     console.log(`  Connecting to iii engine at http://${engineHost}:${enginePort}\n`);
     
-    serverProcess = spawn(nextBin, ['start', '-p', port.toString()], {
+    serverProcess = spawn('node', ['server.js'], {
+      cwd: standalonePath,
+      stdio: 'inherit',
+      env: {
+        ...process.env,
+        PORT: port.toString(),
+        HOSTNAME: '0.0.0.0',
+        III_ENGINE_HOST: engineHost,
+        III_ENGINE_PORT: enginePort,
+        III_WS_PORT: wsPort,
+      }
+    });
+  } else if (fs.existsSync(path.join(packageRoot, '.next'))) {
+    // Build exists but not standalone - use next dev for development
+    console.log(`\n  iii-console starting in dev mode on http://localhost:${port}\n`);
+    console.log(`  Connecting to iii engine at http://${engineHost}:${enginePort}\n`);
+    
+    serverProcess = spawn(nextBin, ['dev', '-p', port.toString()], {
       cwd: packageRoot,
       stdio: 'inherit',
       env: {

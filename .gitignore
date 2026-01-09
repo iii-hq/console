@@ -39,3 +39,33 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# iii-engine (local copy, not part of this repo)
+/iii-engine/
+
+# example app (local testing, not part of this repo)
+/iii-example/
+
+# pnpm
+.pnpm-store/
+pnpm-lock.yaml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+app.log
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
