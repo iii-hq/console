@@ -1,0 +1,143 @@
+use anyhow::Result;
+use axum::{
+    body::Body,
+    extract::Path,
+    http::{header, HeaderValue, StatusCode},
+    response::{Html, IntoResponse, Response},
+    routing::get,
+    Router,
+};
+use rust_embed::Embed;
+use serde_json::json;
+use std::net::SocketAddr;
+use tower_http::cors::{Any, CorsLayer};
+use tracing::info;
+
+#[derive(Embed)]
+#[folder = "assets/"]
+struct Assets;
+
+/// Server configuration
+pub struct ServerConfig {
+    pub port: u16,
+    pub host: String,
+    pub engine_host: String,
+    pub engine_port: u16,
+    pub ws_port: u16,
+}
+
+/// Generate index.html with runtime config injected
+fn get_index_html(config: &ServerConfig) -> String {
+    let runtime_config = json!({
+        "basePath": "/",
+        "engineHost": config.engine_host,
+        "enginePort": config.engine_port,
+        "wsPort": config.ws_port,
+    });
+
+    // Get the base index.html from embedded assets
+    let index_content = Assets::get("index.html")
+        .map(|file| String::from_utf8_lossy(&file.data).to_string())
+        .unwrap_or_else(|| {
+            r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>iii Console</title>
+</head>
+<body>
+    <div id="root"></div>
+    <script>console.error('Assets not found. Build frontend first.');</script>
+</body>
+</html>"#
+                .to_string()
+        });
+
+    // Inject the runtime config script before the closing </head> tag
+    let config_script = format!(
+        r#"<script>window.__CONSOLE_CONFIG__={};</script>"#,
+        runtime_config
+    );
+
+    index_content.replace("</head>", &format!("{}</head>", config_script))
+}
+
+/// Serve the index.html with runtime config
+async fn serve_index(
+    axum::extract::State(config): axum::extract::State<std::sync::Arc<ServerConfig>>,
+) -> Html<String> {
+    Html(get_index_html(&config))
+}
+
+/// Serve static files or fallback to index.html for SPA routing
+async fn serve_static_or_index(
+    axum::extract::State(config): axum::extract::State<std::sync::Arc<ServerConfig>>,
+    Path(path): Path<String>,
+) -> Response {
+    // Try to serve the static file first
+    if let Some(file) = Assets::get(&path) {
+        let mime = mime_guess::from_path(&path).first_or_octet_stream();
+        let body = Body::from(file.data.to_vec());
+
+        Response::builder()
+            .status(StatusCode::OK)
+            .header(
+                header::CONTENT_TYPE,
+                HeaderValue::from_str(mime.as_ref()).unwrap(),
+            )
+            .body(body)
+            .unwrap()
+    } else {
+        // Fallback to index.html for SPA routing
+        Html(get_index_html(&config)).into_response()
+    }
+}
+
+/// Run the console server
+pub async fn run_server(config: ServerConfig) -> Result<()> {
+    // Resolve hostname to IP address
+    let host = if config.host == "localhost" {
+        "127.0.0.1".to_string()
+    } else if config.host == "0.0.0.0" || config.host.parse::<std::net::IpAddr>().is_ok() {
+        config.host.clone()
+    } else {
+        // Try to resolve hostname
+        use std::net::ToSocketAddrs;
+        format!("{}:0", config.host)
+            .to_socket_addrs()
+            .ok()
+            .and_then(|mut addrs| addrs.next())
+            .map(|addr| addr.ip().to_string())
+            .unwrap_or_else(|| "127.0.0.1".to_string())
+    };
+
+    let addr: SocketAddr = format!("{}:{}", host, config.port)
+        .parse()
+        .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
+
+    let config = std::sync::Arc::new(config);
+
+    // Build CORS layer - permissive for local development
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
+    // Build the router
+    let app = Router::new()
+        .route("/", get(serve_index))
+        .route("/{*path}", get(serve_static_or_index))
+        .layer(cors)
+        .with_state(config);
+
+    info!("Console available at http://{}", addr);
+
+    // Create the listener
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+
+    // Start the server
+    axum::serve(listener, app).await?;
+
+    Ok(())
+}

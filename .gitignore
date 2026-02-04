@@ -1,7 +1,5 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
-/node_modules
+# Dependencies
+node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -10,48 +8,31 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
+# Build outputs
+packages/console-frontend/dist/
+packages/console-frontend/dist-binary/
+packages/console-rust/target/
+packages/console-rust/assets/
 
-# next.js
-/.next/
-/out/
+# TypeScript
+*.tsbuildinfo
 
-# production
-/build
+# Vite compiled config
+packages/console-frontend/vite.config.js
+packages/console-frontend/vite.config.d.ts
 
-# misc
-.DS_Store
-*.pem
+# Testing
+coverage/
 
-# debug
+# Environment
+.env*
+
+# Debug logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
-
-# env files (can opt-in for committing if needed)
-.env*
-
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-
-# iii-engine (local copy, not part of this repo)
-/iii-engine/
-
-# example app - exclude node_modules but include source
-/iii-example/node_modules/
-/iii-example/.next/
-/iii-example/dist/
-/iii-example/build/
-
-# pnpm
-.pnpm-store/
-pnpm-lock.yaml
+*.log
 
 # IDE
 .vscode/
@@ -64,11 +45,20 @@ pnpm-lock.yaml
 .DS_Store
 Thumbs.db
 
-# Logs
-*.log
-app.log
-
-# Temporary files
+# Misc
+*.pem
+.vercel
+.cache/
 *.tmp
 *.temp
-.cache/
+
+# Git worktrees
+.worktrees/
+docs/
+.sisyphus/
+.auto-claude/
+.auto-claude-status
+.auto-claude-security.json
+.claude_settings.json
+.omc/
+CLAUDE.md

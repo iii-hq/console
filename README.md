@@ -158,10 +158,11 @@ TRIGGERS → invoke → FUNCTIONS → r/w → STATES │ STREAMS
 
 Manage persistent key-value data used by your functions.
 
-- Browse state groups and items
+- **Browse state groups** - List all available groups with automatic discovery
 - View JSON values with syntax highlighting
 - Edit and delete state items
 - Real-time updates
+- Group-based organization for structured data storage
 
 ### 🌊 Streams Page
 
@@ -172,13 +173,22 @@ Monitor WebSocket traffic in real-time (like Chrome DevTools Network tab).
 - Pause/resume message capture
 - Export as JSON
 
-### ⚡ Functions & Triggers Page
+### ⚡ Functions Page
 
-View all functions and their associated triggers:
+View all functions and their associated triggers with interactive testing capabilities:
 
+**Trigger Types:**
 - **API** 🔵 - REST endpoints (GET, POST, DELETE, etc.)
 - **CRON** 🟠 - Scheduled tasks running on intervals
 - **EVENT** 🟣 - Event listeners and handlers
+
+**Interactive Testing:**
+- Invoke API functions directly with custom request body, headers, and query params
+- Trigger cron jobs manually for testing
+- Emit events to test event-driven workflows
+- View connected workers and their status
+- Search and filter functions
+- Toggle visibility of system functions
 
 ### 📝 Logs Page
 
@@ -191,7 +201,22 @@ View and debug application logs in real-time:
 
 ### 🔍 Traces Page
 
-Distributed tracing for performance debugging (OpenTelemetry compatible).
+Distributed tracing for performance debugging (OpenTelemetry compatible):
+
+- View trace groups with hierarchical span visualization
+- Inspect individual spans with timing and metadata
+- Real-time status indicators for active traces
+- Filter traces by service, operation, or status
+- Identify performance bottlenecks across distributed calls
+
+### 🔌 Adapters Page
+
+Monitor connected adapters, modules, and engine components:
+
+- View all registered modules and their health status
+- List available trigger types and their configurations
+- Filter between system and user adapters
+- Inspect adapter capabilities and connected components
 
 ### ⚙️ Config Page
 
@@ -233,6 +258,10 @@ Inspect engine configuration and available trigger types.
 | `/_console/trigger-types` | GET | List available trigger types |
 | `/_console/workers` | GET | List connected workers and their stats |
 | `/_console/streams` | GET | List all streams with message counts |
+| `/_console/streams/groups` | POST | List all state groups |
+| `/_console/streams/group` | POST | List items in a state group |
+| `/_console/streams/:stream/group/:group` | POST | Set a state item |
+| `/_console/streams/:stream/group/:group/:key` | DELETE | Delete a state item |
 | `/_console/logs` | GET | Fetch logs from configured adapter |
 | `/_console/adapters` | GET | List connected adapters and modules |
 | `/_console/config` | GET | Engine configuration and environment |
@@ -357,7 +386,10 @@ III_ENGINE_HOST=192.168.1.100 npx iii-console
 ## Tech Stack
 
 - **Next.js 16** - React framework with App Router
-- **Tailwind CSS** - Utility-first CSS
+- **React 19** - Latest React with concurrent features
+- **TypeScript 5** - Type-safe development
+- **Tailwind CSS 4** - Utility-first CSS with new architecture
+- **SWR** - React hooks for data fetching with caching
 - **Lucide React** - Icon library
 - **WebSocket** - Real-time streaming via iii Streams
 
