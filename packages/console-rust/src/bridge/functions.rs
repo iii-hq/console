@@ -45,16 +45,6 @@ async fn handle_functions_list(bridge: &Bridge) -> Value {
     }
 }
 
-fn handle_config() -> Value {
-    success_response(json!({
-        "engine_host": "localhost",
-        "engine_port": 3111,
-        "ws_port": 3112,
-        "console_port": 3113,
-        "version": env!("CARGO_PKG_VERSION")
-    }))
-}
-
 async fn handle_status(bridge: &Bridge) -> Value {
     let (workers_result, functions_result, metrics_result) = tokio::join!(
         bridge.invoke_function_with_timeout("engine.workers.list", json!({}), Duration::from_secs(5)),
@@ -157,8 +147,9 @@ async fn handle_sampling_rules(bridge: &Bridge) -> Value {
 }
 
 async fn handle_otel_logs_list(bridge: &Bridge, input: Value) -> Value {
+    let effective_input = input.get("body").cloned().unwrap_or(input);
     match bridge
-        .invoke_function_with_timeout("engine.logs.list", input, Duration::from_secs(5))
+        .invoke_function_with_timeout("engine.logs.list", effective_input, Duration::from_secs(5))
         .await
     {
         Ok(data) => success_response(data),
@@ -177,8 +168,9 @@ async fn handle_otel_logs_clear(bridge: &Bridge) -> Value {
 }
 
 async fn handle_otel_traces_list(bridge: &Bridge, input: Value) -> Value {
+    let effective_input = input.get("body").cloned().unwrap_or(input);
     match bridge
-        .invoke_function_with_timeout("engine.traces.list", input, Duration::from_secs(5))
+        .invoke_function_with_timeout("engine.traces.list", effective_input, Duration::from_secs(5))
         .await
     {
         Ok(data) => success_response(data),
@@ -196,9 +188,39 @@ async fn handle_otel_traces_clear(bridge: &Bridge) -> Value {
     }
 }
 
-async fn handle_metrics_detailed(bridge: &Bridge, input: Value) -> Value {
+async fn handle_otel_traces_tree(bridge: &Bridge, input: Value) -> Value {
+    // Extract trace_id from body wrapper or top-level input
+    // API triggers wrap POST body inside a "body" field
+    let trace_id = input
+        .get("body")
+        .and_then(|b| b.get("trace_id"))
+        .and_then(|v| v.as_str())
+        .or_else(|| input.get("trace_id").and_then(|v| v.as_str()));
+
+    let trace_id = match trace_id {
+        Some(id) => id.to_string(),
+        None => {
+            return error_response(iii_sdk::BridgeError::Handler(
+                "Missing trace_id in request".to_string(),
+            ))
+        }
+    };
+
+    let tree_input = json!({ "trace_id": trace_id });
+
     match bridge
-        .invoke_function_with_timeout("engine.metrics.list", input, Duration::from_secs(5))
+        .invoke_function_with_timeout("engine.traces.tree", tree_input, Duration::from_secs(10))
+        .await
+    {
+        Ok(data) => success_response(data),
+        Err(err) => error_response(err),
+    }
+}
+
+async fn handle_metrics_detailed(bridge: &Bridge, input: Value) -> Value {
+    let effective_input = input.get("body").cloned().unwrap_or(input);
+    match bridge
+        .invoke_function_with_timeout("engine.metrics.list", effective_input, Duration::from_secs(5))
         .await
     {
         Ok(data) => success_response(data),
@@ -207,8 +229,9 @@ async fn handle_metrics_detailed(bridge: &Bridge, input: Value) -> Value {
 }
 
 async fn handle_rollups_list(bridge: &Bridge, input: Value) -> Value {
+    let effective_input = input.get("body").cloned().unwrap_or(input);
     match bridge
-        .invoke_function_with_timeout("engine.rollups.list", input, Duration::from_secs(5))
+        .invoke_function_with_timeout("engine.rollups.list", effective_input, Duration::from_secs(5))
         .await
     {
         Ok(data) => success_response(data),
@@ -349,7 +372,7 @@ async fn handle_state_item_delete(bridge: &Bridge, input: Value) -> Value {
     // Extract path parameters (from URL: /states/:group/item/:key)
     let path_params = input.get("path_params");
 
-    println!("DEBUG: Received input: {:?}", path_params);
+    tracing::debug!(path_params = ?path_params, "Received state item delete input");
     let group_id = path_params
         .and_then(|p| p.get("group"))
         .and_then(|v| v.as_str())
@@ -471,8 +494,6 @@ pub fn register_functions(bridge: &Bridge) {
         async move { Ok(handle_status(&bridge).await) }
     });
 
-    bridge.register_function("console.config", move |_input| async move { Ok(handle_config()) });
-
     let b = bridge.clone();
     bridge.register_function("console.trigger_types", move |_input| {
         let bridge = b.clone();
@@ -513,6 +534,12 @@ pub fn register_functions(bridge: &Bridge) {
     bridge.register_function("console.otel_traces_clear", move |_input| {
         let bridge = b.clone();
         async move { Ok(handle_otel_traces_clear(&bridge).await) }
+    });
+
+    let b = bridge.clone();
+    bridge.register_function("console.otel_traces_tree", move |input| {
+        let bridge = b.clone();
+        async move { Ok(handle_otel_traces_tree(&bridge, input).await) }
     });
 
     let b = bridge.clone();

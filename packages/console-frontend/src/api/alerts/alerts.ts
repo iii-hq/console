@@ -1,4 +1,4 @@
-import { DEVTOOLS_API, MANAGEMENT_API } from '../config'
+import { getDevtoolsApi, getManagementApi } from '../config'
 import { unwrapResponse } from '../utils'
 
 // ============================================================================
@@ -28,7 +28,7 @@ export interface AlertsResponse {
 
 export async function fetchAlerts(): Promise<AlertsResponse> {
   try {
-    const res = await fetch(`${DEVTOOLS_API}/alerts`)
+    const res = await fetch(`${getDevtoolsApi()}/alerts`)
     if (res.ok) {
       return unwrapResponse<AlertsResponse>(res)
     }
@@ -36,7 +36,7 @@ export async function fetchAlerts(): Promise<AlertsResponse> {
     // Fall through to management API
   }
 
-  const res = await fetch(`${MANAGEMENT_API}/alerts`)
+  const res = await fetch(`${getManagementApi()}/alerts`)
   if (!res.ok) throw new Error('Failed to fetch alerts')
-  return res.json()
+  return unwrapResponse<AlertsResponse>(res)
 }

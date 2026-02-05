@@ -1,11 +1,11 @@
-import { DEVTOOLS_API } from '../config'
+import { getDevtoolsApi } from '../config'
 
 export async function invokeFunction(
   functionPath: string,
   input?: unknown,
 ): Promise<{ success: boolean; data?: unknown; error?: string }> {
   try {
-    const res = await fetch(`${DEVTOOLS_API}/invoke`, {
+    const res = await fetch(`${getDevtoolsApi()}/invoke`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ function_path: functionPath, input: input || {} }),
@@ -28,7 +28,7 @@ export async function emitEvent(
   data: unknown,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const res = await fetch(`${DEVTOOLS_API}/emit`, {
+    const res = await fetch(`${getDevtoolsApi()}/emit`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ topic, data }),
@@ -56,7 +56,7 @@ export async function triggerCron(
   functionPath?: string,
 ): Promise<{ success: boolean; data?: unknown; error?: string }> {
   try {
-    const res = await fetch(`${DEVTOOLS_API}/cron/trigger`, {
+    const res = await fetch(`${getDevtoolsApi()}/cron/trigger`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ trigger_id: triggerId, function_path: functionPath }),

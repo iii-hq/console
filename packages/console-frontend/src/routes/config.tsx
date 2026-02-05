@@ -37,6 +37,7 @@ import {
   triggersQuery,
   triggerTypesQuery,
 } from '@/api'
+import { useConfig } from '@/api/config-provider'
 import { Badge, Button } from '@/components/ui/card'
 
 export const Route = createFileRoute('/config')({
@@ -68,16 +69,17 @@ function ConfigPage() {
   const [showSystem, setShowSystem] = useState(false)
   const [selectedModule, setSelectedModule] = useState<string | null>(null)
   const [showConfigModal, setShowConfigModal] = useState(false)
+  const consoleConfig = useConfig()
   const [endpoints, setEndpoints] = useState<EndpointStatus[]>([
     {
-      url: 'http://localhost:3111',
+      url: `http://${consoleConfig.engineHost}:${consoleConfig.enginePort}`,
       name: 'iii Engine',
       icon: <Terminal className="w-4 h-4" />,
       status: 'checking',
       description: 'REST API & DevTools',
     },
     {
-      url: 'ws://localhost:3112',
+      url: `ws://${consoleConfig.engineHost}:${consoleConfig.wsPort}`,
       name: 'Streams',
       icon: <Activity className="w-4 h-4" />,
       status: 'checking',
@@ -199,10 +201,8 @@ ${modules
     const detectedTriggerHandlers = adapters.filter((a) => a.type === 'trigger')
     const workerPools = adapters.filter((a) => a.type === 'worker_pool')
 
-    const apiPort =
-      endpoints.find((e) => e.name === 'iii Engine')?.url?.match(/:(\d+)/)?.[1] || '3111'
-    const streamsPort =
-      endpoints.find((e) => e.name === 'Streams')?.url?.match(/:(\d+)/)?.[1] || '3112'
+    const apiPort = String(consoleConfig.enginePort)
+    const streamsPort = String(consoleConfig.wsPort)
     const sdkPort =
       endpoints.find((e) => e.name === 'SDK Bridge')?.url?.match(/:(\d+)/)?.[1] || '49134'
 

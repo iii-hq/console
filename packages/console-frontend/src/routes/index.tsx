@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createMetricsSubscription } from '@/api'
+import { useConfig } from '@/api/config-provider'
 import {
   functionsQuery,
   metricsHistoryQuery,
@@ -150,6 +151,7 @@ function DashboardPage() {
   const { data: streamsData, isError: streamsError } = useQuery(streamsQuery)
   const { data: metricsHistoryData } = useQuery(metricsHistoryQuery(100))
 
+  const config = useConfig()
   const loading = statusLoading || functionsLoading || triggersLoading
   const hasError = statusError || functionsError || triggersError || streamsError
 
@@ -566,7 +568,7 @@ function DashboardPage() {
                         </div>
                       </div>
                       <div className="text-[10px] md:text-[11px] font-mono text-foreground/80 bg-black/40 px-1.5 md:px-2 py-1 md:py-1.5 rounded border border-green-500/10 truncate">
-                        <span className="text-green-400/60 pr-1">ws://</span>:3112
+                        <span className="text-green-400/60 pr-1">ws://</span>:{config.wsPort}
                       </div>
                       <div className="flex items-center gap-2 md:gap-3 text-[9px] md:text-[10px] text-green-400/80 pt-0.5 md:pt-1">
                         <span className="flex items-center gap-1">↓ In</span>
@@ -756,13 +758,13 @@ function DashboardPage() {
                 <span className="text-[9px] md:text-[10px] text-muted uppercase tracking-wider">
                   API
                 </span>
-                <span className="text-[10px] md:text-xs font-mono">:3111</span>
+                <span className="text-[10px] md:text-xs font-mono">:{config.enginePort}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-[9px] md:text-[10px] text-muted uppercase tracking-wider">
                   WS
                 </span>
-                <span className="text-[10px] md:text-xs font-mono">:3112</span>
+                <span className="text-[10px] md:text-xs font-mono">:{config.wsPort}</span>
               </div>
               {lastUpdate && (
                 <div className="flex justify-between items-center pt-2 border-t border-border">

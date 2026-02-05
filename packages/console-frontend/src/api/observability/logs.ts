@@ -1,4 +1,4 @@
-import { DEVTOOLS_API, MANAGEMENT_API } from '../config'
+import { getDevtoolsApi, getManagementApi } from '../config'
 import { unwrapResponse } from '../utils'
 
 // ============================================================================
@@ -84,7 +84,7 @@ export async function fetchOtelLogs(options?: {
   }
 
   try {
-    const res = await fetch(`${DEVTOOLS_API}/otel/logs`, {
+    const res = await fetch(`${getDevtoolsApi()}/otel/logs`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -96,7 +96,7 @@ export async function fetchOtelLogs(options?: {
     // Fall through to management API
   }
 
-  const res = await fetch(`${MANAGEMENT_API}/otel/logs`, {
+  const res = await fetch(`${getManagementApi()}/otel/logs`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -107,7 +107,7 @@ export async function fetchOtelLogs(options?: {
 
 export async function clearOtelLogs(): Promise<{ success: boolean }> {
   try {
-    const res = await fetch(`${DEVTOOLS_API}/otel/logs/clear`, {
+    const res = await fetch(`${getDevtoolsApi()}/otel/logs/clear`, {
       method: 'POST',
     })
     if (res.ok) {
@@ -118,7 +118,7 @@ export async function clearOtelLogs(): Promise<{ success: boolean }> {
     // Fall through to management API
   }
 
-  const res = await fetch(`${MANAGEMENT_API}/otel/logs/clear`, {
+  const res = await fetch(`${getManagementApi()}/otel/logs/clear`, {
     method: 'POST',
   })
   if (!res.ok) throw new Error('Failed to clear OTEL logs')

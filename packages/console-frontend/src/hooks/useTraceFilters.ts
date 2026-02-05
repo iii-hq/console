@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { TracesFilterParams } from '@/api'
 
 export interface TraceFilterState {
@@ -151,7 +151,7 @@ export function useTraceFilters() {
    * Maps camelCase state properties to snake_case API parameters
    * Filters out undefined, null, and empty strings
    */
-  const getApiParams = useCallback((): TracesFilterParams => {
+  const { apiParams, computedWarnings } = useMemo(() => {
     const params: TracesFilterParams = {
       offset: (filters.page - 1) * filters.pageSize,
       limit: filters.pageSize,
@@ -205,14 +205,20 @@ export function useTraceFilters() {
         params.end_time = filters.endTime
     }
 
-    setValidationWarnings(warnings)
-
     if (filters.attributes && filters.attributes.length > 0) params.attributes = filters.attributes
     if (filters.sortBy) params.sort_by = filters.sortBy
     if (filters.sortOrder) params.sort_order = filters.sortOrder
 
-    return params
+    return { apiParams: params, computedWarnings: warnings }
   }, [filters])
+
+  useEffect(() => {
+    setValidationWarnings(computedWarnings)
+  }, [computedWarnings])
+
+  const getApiParams = useCallback((): TracesFilterParams => {
+    return apiParams
+  }, [apiParams])
 
   const clearValidationWarnings = useCallback(() => {
     setValidationWarnings({})

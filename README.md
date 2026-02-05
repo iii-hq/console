@@ -258,10 +258,10 @@ Inspect engine configuration and available trigger types.
 | `/_console/trigger-types` | GET | List available trigger types |
 | `/_console/workers` | GET | List connected workers and their stats |
 | `/_console/streams` | GET | List all streams with message counts |
-| `/_console/streams/groups` | POST | List all state groups |
-| `/_console/streams/group` | POST | List items in a state group |
-| `/_console/streams/:stream/group/:group` | POST | Set a state item |
-| `/_console/streams/:stream/group/:group/:key` | DELETE | Delete a state item |
+| `/_console/states/groups` | GET | List all state groups |
+| `/_console/states/group` | POST | List items in a state group |
+| `/_console/states/:group/item` | POST | Set a state item |
+| `/_console/states/:group/item/:key` | DELETE | Delete a state item |
 | `/_console/logs` | GET | Fetch logs from configured adapter |
 | `/_console/adapters` | GET | List connected adapters and modules |
 | `/_console/config` | GET | Engine configuration and environment |

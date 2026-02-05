@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import {
   ArrowDown,
@@ -32,7 +32,6 @@ export const Route = createFileRoute('/states')({
 })
 
 function StatesPage() {
-  const queryClient = useQueryClient()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
 

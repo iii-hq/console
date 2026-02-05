@@ -39,7 +39,6 @@ export interface TimeRangeFilterProps {
   onClear?: () => void
   className?: string
   showCustomOption?: boolean
-  defaultPreset?: TimeRangePreset
   compactMode?: boolean
 }
 
@@ -143,11 +142,21 @@ export function TimeRangeFilter({
 
   // Handle custom range application
   const handleApplyCustom = useCallback(() => {
+    // Validate both inputs are present
+    if (!customStart || !customEnd) {
+      return
+    }
+
     const startTime = parseDateTimeLocal(customStart)
     const endTime = parseDateTimeLocal(customEnd)
 
+    // Validate parsed values are valid numbers
+    if (Number.isNaN(startTime) || Number.isNaN(endTime)) {
+      return
+    }
+
+    // Validate start is before end
     if (startTime >= endTime) {
-      // Invalid range - end must be after start
       return
     }
 
@@ -218,21 +227,21 @@ export function TimeRangeFilter({
       >
         <Clock className="w-3 h-3" />
         <span className="truncate max-w-[200px]">{displayText}</span>
-        {value && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              handleClear()
-            }}
-            className="p-0.5 hover:bg-[#5B5B5B]/30 rounded"
-            title="Clear time filter"
-          >
-            <X className="w-3 h-3" />
-          </button>
-        )}
         <ChevronDown className={cn('w-3 h-3 transition-transform', isOpen && 'rotate-180')} />
       </button>
+      {value && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            handleClear()
+          }}
+          className="absolute right-7 top-1/2 -translate-y-1/2 p-0.5 hover:bg-[#5B5B5B]/30 rounded"
+          title="Clear time filter"
+        >
+          <X className="w-3 h-3" />
+        </button>
+      )}
 
       {/* Dropdown */}
       {isOpen && (

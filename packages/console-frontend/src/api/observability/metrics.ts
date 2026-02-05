@@ -1,4 +1,4 @@
-import { DEVTOOLS_API, MANAGEMENT_API } from '../config'
+import { getDevtoolsApi, getManagementApi } from '../config'
 import type { MetricsSnapshot } from '../types/shared'
 import { unwrapResponse } from '../utils'
 
@@ -78,7 +78,7 @@ export interface RollupsResponse {
 }
 
 export async function fetchMetrics(): Promise<MetricsSnapshot> {
-  const res = await fetch(`${DEVTOOLS_API}/metrics`)
+  const res = await fetch(`${getDevtoolsApi()}/metrics`)
   if (!res.ok) throw new Error('Failed to fetch metrics')
   return unwrapResponse(res)
 }
@@ -87,8 +87,8 @@ export async function fetchMetricsHistory(
   limit?: number,
 ): Promise<{ history: MetricsSnapshot[]; count: number }> {
   const url = limit
-    ? `${DEVTOOLS_API}/metrics/history?limit=${limit}`
-    : `${DEVTOOLS_API}/metrics/history`
+    ? `${getDevtoolsApi()}/metrics/history?limit=${limit}`
+    : `${getDevtoolsApi()}/metrics/history`
   const res = await fetch(url)
   if (!res.ok) throw new Error('Failed to fetch metrics history')
   return unwrapResponse(res)
@@ -108,7 +108,7 @@ export async function fetchDetailedMetrics(options?: {
   }
 
   try {
-    const res = await fetch(`${DEVTOOLS_API}/metrics/detailed`, {
+    const res = await fetch(`${getDevtoolsApi()}/metrics/detailed`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -120,7 +120,7 @@ export async function fetchDetailedMetrics(options?: {
     // Fall through to management API
   }
 
-  const res = await fetch(`${MANAGEMENT_API}/metrics/detailed`, {
+  const res = await fetch(`${getManagementApi()}/metrics/detailed`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -143,7 +143,7 @@ export async function fetchRollups(options?: {
   }
 
   try {
-    const res = await fetch(`${MANAGEMENT_API}/rollups`, {
+    const res = await fetch(`${getManagementApi()}/rollups`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -155,7 +155,7 @@ export async function fetchRollups(options?: {
     // Fall through to management API
   }
 
-  const res = await fetch(`${MANAGEMENT_API}/rollups`, {
+  const res = await fetch(`${getManagementApi()}/rollups`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

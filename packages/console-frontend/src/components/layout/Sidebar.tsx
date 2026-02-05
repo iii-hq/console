@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { getConnectionInfo } from '../../api/config'
+import { useConfig } from '../../api/config-provider'
 
 const NAV_ITEMS = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -42,6 +43,7 @@ function IIILogo({ className = '' }: { className?: string }) {
 export function Sidebar() {
   const location = useLocation()
   const pathname = location.pathname
+  const config = useConfig()
   const [isOnline, setIsOnline] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
@@ -160,7 +162,7 @@ export function Sidebar() {
           </div>
         </div>
         <div className="mt-3 text-[9px] text-muted/60 tracking-wide font-mono">
-          v0.0.0 • localhost:3111
+          v{config.version} • {config.engineHost}:{config.enginePort}
         </div>
       </div>
     </>

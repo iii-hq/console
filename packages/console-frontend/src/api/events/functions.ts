@@ -1,4 +1,4 @@
-import { DEVTOOLS_API, MANAGEMENT_API } from '../config'
+import { getDevtoolsApi, getManagementApi } from '../config'
 import { unwrapResponse } from '../utils'
 
 // ============================================================================
@@ -38,7 +38,7 @@ export interface EventsInfo {
 // ============================================================================
 
 export async function fetchFunctions(): Promise<{ functions: FunctionInfo[]; count: number }> {
-  const res = await fetch(`${DEVTOOLS_API}/functions`)
+  const res = await fetch(`${getDevtoolsApi()}/functions`)
   if (!res.ok) throw new Error('Failed to fetch functions')
   const data = await unwrapResponse<{ functions: FunctionInfo[] }>(res)
   return {
@@ -49,7 +49,7 @@ export async function fetchFunctions(): Promise<{ functions: FunctionInfo[]; cou
 
 export async function fetchTriggers(): Promise<{ triggers: TriggerInfo[]; count: number }> {
   try {
-    const res = await fetch(`${DEVTOOLS_API}/triggers`)
+    const res = await fetch(`${getDevtoolsApi()}/triggers`)
     if (res.ok) {
       const data = await unwrapResponse<{ triggers: TriggerInfo[] }>(res)
       return {
@@ -61,7 +61,7 @@ export async function fetchTriggers(): Promise<{ triggers: TriggerInfo[]; count:
     // Fall through to management API
   }
 
-  const res = await fetch(`${MANAGEMENT_API}/triggers`)
+  const res = await fetch(`${getManagementApi()}/triggers`)
   if (!res.ok) throw new Error('Failed to fetch triggers')
   const data = await res.json()
   return {
@@ -74,7 +74,7 @@ export async function fetchTriggerTypes(): Promise<{
   trigger_types: string[]
   count: number
 }> {
-  const res = await fetch(`${DEVTOOLS_API}/trigger-types`)
+  const res = await fetch(`${getDevtoolsApi()}/trigger-types`)
   if (!res.ok) throw new Error('Failed to fetch trigger types')
   const data = await unwrapResponse<{ trigger_types: string[] }>(res)
   return {
@@ -84,7 +84,7 @@ export async function fetchTriggerTypes(): Promise<{
 }
 
 export async function fetchEventsInfo(): Promise<EventsInfo> {
-  const res = await fetch(`${DEVTOOLS_API}/events`)
+  const res = await fetch(`${getDevtoolsApi()}/events`)
   if (!res.ok) throw new Error('Failed to fetch events info')
   return unwrapResponse(res)
 }

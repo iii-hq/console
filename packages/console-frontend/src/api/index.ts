@@ -7,16 +7,16 @@ export { fetchAlerts } from './alerts/alerts'
 export type { SamplingRule, SamplingRulesResponse } from './alerts/sampling'
 export { fetchSamplingRules } from './alerts/sampling'
 // Configuration
+export type { ConsoleConfig } from './config'
 export {
-  DEVTOOLS_API,
-  ENGINE_HOST,
-  ENGINE_PORT,
   getConfig,
   getConnectionInfo,
-  MANAGEMENT_API,
-  STREAMS_WS,
-  WS_PORT,
+  getDevtoolsApi,
+  getManagementApi,
+  getStreamsWs,
+  setConfig,
 } from './config'
+export { ConfigProvider, useConfig } from './config-provider'
 // Events - Functions
 export type {
   EventsInfo,
@@ -62,11 +62,13 @@ export {
 export type {
   SpanEvent,
   SpanLink,
+  SpanTreeNode,
   StoredSpan,
   TracesFilterParams,
   TracesResponse,
+  TraceTreeResponse,
 } from './observability/traces'
-export { clearTraces, fetchTraces } from './observability/traces'
+export { clearTraces, fetchTraces, fetchTraceTree } from './observability/traces'
 // Queries (React Query)
 export * from './queries'
 // State

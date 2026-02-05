@@ -3,6 +3,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { createRouter, RouterProvider } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { ConfigProvider } from './api/config-provider'
 import { routeTree } from './routeTree.gen'
 import './styles/globals.css'
 
@@ -33,9 +34,11 @@ const showDevtools = import.meta.env.MODE !== 'binary'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-      {showDevtools && <ReactQueryDevtools initialIsOpen={false} />}
-    </QueryClientProvider>
+    <ConfigProvider>
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+        {showDevtools && <ReactQueryDevtools initialIsOpen={false} />}
+      </QueryClientProvider>
+    </ConfigProvider>
   </StrictMode>,
 )

@@ -7,7 +7,6 @@ pub fn register_triggers(bridge: &Bridge) -> Result<(), BridgeError> {
     let triggers = vec![
         ("console.status", "_console/status", "GET"),
         ("console.health", "_console/health", "GET"),
-        ("console.config", "_console/config", "GET"),
         ("console.functions", "_console/functions", "GET"),
         ("console.triggers", "_console/triggers", "GET"),
         ("console.trigger_types", "_console/trigger-types", "GET"),
@@ -24,6 +23,11 @@ pub fn register_triggers(bridge: &Bridge) -> Result<(), BridgeError> {
         (
             "console.otel_traces_clear",
             "_console/otel/traces/clear",
+            "POST",
+        ),
+        (
+            "console.otel_traces_tree",
+            "_console/otel/traces/tree",
             "POST",
         ),
         (

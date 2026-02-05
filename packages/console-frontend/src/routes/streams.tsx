@@ -25,6 +25,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { StreamMessage } from '@/api'
 import { getConnectionInfo, streamsQuery } from '@/api'
+import { useConfig } from '@/api/config-provider'
 import { Badge, Button, Input } from '@/components/ui/card'
 import { JsonViewer } from '@/components/ui/json-viewer'
 import { Pagination } from '@/components/ui/pagination'
@@ -177,6 +178,7 @@ function StreamsPage() {
     new Map(),
   ) // Map<streamName, {groupId, subscriptionId}>
   const lastPingTimeRef = useRef<number | null>(null)
+  const isPausedRef = useRef(false)
 
   const [subscribedStreams, setSubscribedStreams] = useState<
     Array<{ streamName: string; groupId: string; subscriptionId: string }>
@@ -187,13 +189,18 @@ function StreamsPage() {
 
   const { data: streamsData } = useQuery(streamsQuery)
   const streams = streamsData?.streams || []
-  const websocketPort = streamsData?.websocket_port || 3112
+  const config = useConfig()
+  const websocketPort = streamsData?.websocket_port || config.wsPort
 
   // Computed values for group selection
   const currentStream = streams.find((s) => s.id === newStreamName)
   const availableGroups = currentStream?.groups || []
 
   const { streamsWs } = getConnectionInfo()
+
+  useEffect(() => {
+    isPausedRef.current = isPaused
+  }, [isPaused])
 
   useEffect(() => {
     let ws: WebSocket | null = null
@@ -248,7 +255,7 @@ function StreamsPage() {
         }
 
         ws.onmessage = (event) => {
-          if (!mounted || isPaused) return
+          if (!mounted || isPausedRef.current) return
 
           try {
             const data = JSON.parse(event.data)
@@ -308,7 +315,7 @@ function StreamsPage() {
       if (reconnectTimer) clearTimeout(reconnectTimer)
       if (ws) ws.close()
     }
-  }, [isPaused, streamsWs])
+  }, [streamsWs])
 
   useEffect(() => {
     if (autoScroll && messagesContainerRef.current) {
@@ -324,7 +331,7 @@ function StreamsPage() {
         data: { streamName, groupId, subscriptionId },
       }
       wsRef.current.send(JSON.stringify(message))
-      subscriptionsRef.current.set(streamName, { groupId, subscriptionId })
+      subscriptionsRef.current.set(`${streamName}:${groupId}`, { groupId, subscriptionId })
       setSubscribedStreams((prev) => {
         const existing = prev.find((s) => s.streamName === streamName && s.groupId === groupId)
         if (existing) return prev
@@ -357,7 +364,7 @@ function StreamsPage() {
 
   const unsubscribeFromStream = useCallback((streamName: string, groupId: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      const subscription = subscriptionsRef.current.get(streamName)
+      const subscription = subscriptionsRef.current.get(`${streamName}:${groupId}`)
       if (!subscription) {
         console.warn(`No subscription found for stream: ${streamName}`)
         return
@@ -372,7 +379,7 @@ function StreamsPage() {
         },
       }
       wsRef.current.send(JSON.stringify(message))
-      subscriptionsRef.current.delete(streamName)
+      subscriptionsRef.current.delete(`${streamName}:${groupId}`)
       setSubscribedStreams((prev) =>
         prev.filter((s) => !(s.streamName === streamName && s.groupId === groupId)),
       )
