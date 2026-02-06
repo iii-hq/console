@@ -102,6 +102,14 @@ export function TraceFilters({
   const [tempMinDuration, setTempMinDuration] = useState(filters.minDurationMs?.toString() || '')
   const [tempMaxDuration, setTempMaxDuration] = useState(filters.maxDurationMs?.toString() || '')
 
+  // Sync temp state when filters change externally
+  useEffect(() => {
+    setTempServiceName(filters.serviceName || '')
+    setTempOperationName(filters.operationName || '')
+    setTempMinDuration(filters.minDurationMs?.toString() || '')
+    setTempMaxDuration(filters.maxDurationMs?.toString() || '')
+  }, [filters.serviceName, filters.operationName, filters.minDurationMs, filters.maxDurationMs])
+
   // Refs for click-outside detection
   const statusRef = useRef<HTMLDivElement>(null)
   const timeRangeRef = useRef<HTMLDivElement>(null)
@@ -144,8 +152,16 @@ export function TraceFilters({
   }
 
   const handleDurationApply = () => {
-    onFilterChange('minDurationMs', tempMinDuration ? Number.parseInt(tempMinDuration, 10) : null)
-    onFilterChange('maxDurationMs', tempMaxDuration ? Number.parseInt(tempMaxDuration, 10) : null)
+    const parsedMin = tempMinDuration ? Number.parseInt(tempMinDuration, 10) : null
+    const parsedMax = tempMaxDuration ? Number.parseInt(tempMaxDuration, 10) : null
+    onFilterChange(
+      'minDurationMs',
+      parsedMin !== null && Number.isFinite(parsedMin) ? parsedMin : null,
+    )
+    onFilterChange(
+      'maxDurationMs',
+      parsedMax !== null && Number.isFinite(parsedMax) ? parsedMax : null,
+    )
     setOpenPopover(null)
   }
 

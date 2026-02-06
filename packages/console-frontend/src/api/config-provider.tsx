@@ -61,10 +61,14 @@ export function ConfigProvider({ children }: ConfigProviderProps) {
   useEffect(() => {
     if (!error) return
 
+    let cancelled = false
+    const controller = new AbortController()
+    let timeout: ReturnType<typeof setTimeout> | undefined
+
     const timer = setTimeout(() => {
+      if (cancelled) return
       setError(null)
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 5000)
+      timeout = setTimeout(() => controller.abort(), 5000)
 
       fetch('/api/config', { signal: controller.signal })
         .then((res) => {
@@ -73,17 +77,26 @@ export function ConfigProvider({ children }: ConfigProviderProps) {
           return res.json()
         })
         .then((data: ConsoleConfig) => {
-          setConfig(data)
-          setConfigState(data)
+          if (!cancelled) {
+            setConfig(data)
+            setConfigState(data)
+          }
         })
         .catch((err) => {
           clearTimeout(timeout)
-          const message = err instanceof Error ? err.message : 'Failed to load configuration'
-          setError(message)
+          if (!cancelled) {
+            const message = err instanceof Error ? err.message : 'Failed to load configuration'
+            setError(message)
+          }
         })
     }, 3000)
 
-    return () => clearTimeout(timer)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+      clearTimeout(timeout)
+      controller.abort()
+    }
   }, [error])
 
   if (error) {

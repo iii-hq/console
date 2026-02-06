@@ -132,12 +132,27 @@ pub async fn run_server(config: ServerConfig) -> Result<()> {
     let config = std::sync::Arc::new(config);
 
     // Build CORS layer - restrict to console origins
-    let origins: Vec<HeaderValue> = vec![
+    let mut origins: Vec<HeaderValue> = vec![
         format!("http://127.0.0.1:{}", config.port).parse().unwrap(),
         format!("http://localhost:{}", config.port).parse().unwrap(),
         format!("https://127.0.0.1:{}", config.port).parse().unwrap(),
         format!("https://localhost:{}", config.port).parse().unwrap(),
     ];
+
+    // Add configured host origins if different from defaults
+    let cors_host = if config.host == "0.0.0.0" {
+        "localhost" // 0.0.0.0 is not a valid Origin host; browsers use the resolved name
+    } else {
+        &config.host
+    };
+    if cors_host != "localhost" && cors_host != "127.0.0.1" {
+        if let Ok(v) = format!("http://{}:{}", cors_host, config.port).parse::<HeaderValue>() {
+            origins.push(v);
+        }
+        if let Ok(v) = format!("https://{}:{}", cors_host, config.port).parse::<HeaderValue>() {
+            origins.push(v);
+        }
+    }
     let cors = CorsLayer::new()
         .allow_origin(origins)
         .allow_methods(Any)

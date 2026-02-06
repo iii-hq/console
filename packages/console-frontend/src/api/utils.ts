@@ -1,4 +1,4 @@
-import { getDevtoolsApi, getManagementApi } from './config'
+import { getDevtoolsApi } from './config'
 
 interface WrappedResponse<T> {
   status_code: number
@@ -22,20 +22,13 @@ async function unwrapResponse<T>(res: Response): Promise<T> {
 
 export async function fetchWithFallback<T>(
   devtoolsPath: string,
-  managementPath: string,
+  _managementPath?: string,
   options?: RequestInit,
 ): Promise<T> {
-  try {
-    const res = await fetch(`${getDevtoolsApi()}${devtoolsPath}`, options)
-    if (res.ok) {
-      return await unwrapResponse<T>(res)
-    }
-  } catch {
-    // Fall through to management API
+  const res = await fetch(`${getDevtoolsApi()}${devtoolsPath}`, options)
+  if (!res.ok) {
+    throw new Error(`Failed to fetch from ${devtoolsPath}: ${res.status}`)
   }
-
-  const res = await fetch(`${getManagementApi()}${managementPath}`, options)
-  if (!res.ok) throw new Error(`Failed to fetch from ${managementPath}`)
   return await unwrapResponse<T>(res)
 }
 
