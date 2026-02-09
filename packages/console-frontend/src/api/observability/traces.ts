@@ -57,6 +57,7 @@ export interface TracesFilterParams {
   sort_order?: 'asc' | 'desc'
   offset?: number
   limit?: number
+  include_internal?: boolean
 }
 
 // Tree API types (engine.traces.tree)
@@ -103,6 +104,7 @@ export async function fetchTraces(options?: TracesFilterParams): Promise<TracesR
   if (options?.attributes !== undefined) body.attributes = options.attributes
   if (options?.sort_by !== undefined) body.sort_by = options.sort_by
   if (options?.sort_order !== undefined) body.sort_order = options.sort_order
+  if (options?.include_internal !== undefined) body.include_internal = options.include_internal
 
   try {
     const res = await fetch(`${getDevtoolsApi()}/otel/traces`, {

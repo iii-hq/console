@@ -108,7 +108,11 @@ function TracesPage() {
     setIsLoading(true)
     try {
       const params = getApiParams()
-      const data = await fetchTraces({ ...params, limit: params.limit || 10000 })
+      const data = await fetchTraces({
+        ...params,
+        limit: params.limit || 10000,
+        include_internal: showSystem,
+      })
 
       if (data.spans && data.spans.length > 0) {
         // engine.traces.list now returns only root spans, so each span is a trace row
@@ -146,7 +150,7 @@ function TracesPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [getApiParams])
+  }, [getApiParams, showSystem])
 
   const loadTraceSpans = useCallback(async (traceId: string) => {
     setIsLoadingSpans(true)
@@ -204,16 +208,9 @@ function TracesPage() {
         const matchesOp = group.rootOperation.toLowerCase().includes(query)
         if (!matchesId && !matchesOp) return false
       }
-      // System traces filter (traces from internal services)
-      if (!showSystem) {
-        const isSystem = group.services.some(
-          (s) => s.startsWith('iii.') || s.startsWith('iii:') || s === 'console',
-        )
-        if (isSystem) return false
-      }
       return true
     })
-  }, [traceGroups, searchQuery, showSystem])
+  }, [traceGroups, searchQuery])
 
   const totalPages = Math.max(1, Math.ceil(filteredTraces.length / filterState.pageSize))
 
