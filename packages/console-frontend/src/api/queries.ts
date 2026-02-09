@@ -35,16 +35,18 @@ export const healthQuery = queryOptions({
 })
 
 // Functions
-export const functionsQuery = queryOptions({
-  queryKey: ['functions'],
-  queryFn: fetchFunctions,
-})
+export const functionsQuery = (options?: { include_internal?: boolean }) =>
+  queryOptions({
+    queryKey: ['functions', options?.include_internal ?? false],
+    queryFn: () => fetchFunctions(options),
+  })
 
 // Triggers
-export const triggersQuery = queryOptions({
-  queryKey: ['triggers'],
-  queryFn: fetchTriggers,
-})
+export const triggersQuery = (options?: { include_internal?: boolean }) =>
+  queryOptions({
+    queryKey: ['triggers', options?.include_internal ?? false],
+    queryFn: () => fetchTriggers(options),
+  })
 
 // Trigger types
 export const triggerTypesQuery = queryOptions({

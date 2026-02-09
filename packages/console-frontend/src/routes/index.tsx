@@ -37,8 +37,8 @@ export const Route = createFileRoute('/')({
     // The components will handle loading/error states gracefully
     Promise.allSettled([
       queryClient.prefetchQuery(statusQuery),
-      queryClient.prefetchQuery(functionsQuery),
-      queryClient.prefetchQuery(triggersQuery),
+      queryClient.prefetchQuery(functionsQuery()),
+      queryClient.prefetchQuery(triggersQuery()),
       queryClient.prefetchQuery(streamsQuery),
       queryClient.prefetchQuery(metricsHistoryQuery(100)),
     ])
@@ -142,12 +142,12 @@ function DashboardPage() {
     data: functionsData,
     isLoading: functionsLoading,
     isError: functionsError,
-  } = useQuery(functionsQuery)
+  } = useQuery(functionsQuery())
   const {
     data: triggersData,
     isLoading: triggersLoading,
     isError: triggersError,
-  } = useQuery(triggersQuery)
+  } = useQuery(triggersQuery())
   const { data: streamsData, isError: streamsError } = useQuery(streamsQuery)
   const { data: metricsHistoryData } = useQuery(metricsHistoryQuery(100))
 

@@ -5,6 +5,16 @@ use std::time::Duration;
 
 use crate::bridge::error::{error_response, success_response};
 
+/// Parse a boolean parameter from query_params, handling string "true"/"false" coercion.
+fn parse_bool_param(input: &Value, key: &str) -> bool {
+    let params = input.get("query_params").unwrap_or(input);
+    match params.get(key) {
+        Some(Value::Bool(b)) => *b,
+        Some(Value::String(s)) => s.eq_ignore_ascii_case("true"),
+        _ => false,
+    }
+}
+
 async fn handle_health(bridge: &III) -> Value {
     match bridge
         .call_with_timeout("engine.health.check", json!({}), Duration::from_secs(5))
@@ -25,9 +35,11 @@ async fn handle_workers(bridge: &III) -> Value {
     }
 }
 
-async fn handle_triggers_list(bridge: &III) -> Value {
+async fn handle_triggers_list(bridge: &III, input: Value) -> Value {
+    let include_internal = parse_bool_param(&input, "include_internal");
+    let effective_input = json!({ "include_internal": include_internal });
     match bridge
-        .call_with_timeout("engine.triggers.list", json!({}), Duration::from_secs(5))
+        .call_with_timeout("engine.triggers.list", effective_input, Duration::from_secs(5))
         .await
     {
         Ok(triggers_data) => success_response(triggers_data),
@@ -35,9 +47,11 @@ async fn handle_triggers_list(bridge: &III) -> Value {
     }
 }
 
-async fn handle_functions_list(bridge: &III) -> Value {
+async fn handle_functions_list(bridge: &III, input: Value) -> Value {
+    let include_internal = parse_bool_param(&input, "include_internal");
+    let effective_input = json!({ "include_internal": include_internal });
     match bridge
-        .call_with_timeout("engine.functions.list", json!({}), Duration::from_secs(5))
+        .call_with_timeout("engine.functions.list", effective_input, Duration::from_secs(5))
         .await
     {
         Ok(functions_data) => success_response(functions_data),
@@ -50,7 +64,7 @@ async fn handle_status(bridge: &III) -> Value {
         bridge.call_with_timeout("engine.workers.list", json!({}), Duration::from_secs(5)),
         bridge.call_with_timeout(
             "engine.functions.list",
-            json!({}),
+            json!({ "include_internal": true }),
             Duration::from_secs(5)
         ),
         bridge.call_with_timeout("engine.metrics.list", json!({}), Duration::from_secs(5))
@@ -94,7 +108,7 @@ async fn handle_trigger_types(bridge: &III) -> Value {
     ];
 
     match bridge
-        .call_with_timeout("engine.triggers.list", json!({}), Duration::from_secs(5))
+        .call_with_timeout("engine.triggers.list", json!({ "include_internal": true }), Duration::from_secs(5))
         .await
     {
         Ok(triggers_data) => {
@@ -308,7 +322,7 @@ async fn handle_state_group_items(bridge: &III, input: Value) -> Value {
 
 async fn handle_state_item_set(bridge: &III, input: Value) -> Value {
     // Extract path parameters (from URL: /states/:group/item)
-    let path_params = input.get("path_parameters");
+    let path_params = input.get("path_params");
     let body = input.get("body");
 
     let group_id = path_params
@@ -477,15 +491,15 @@ pub fn register_functions(bridge: &III) {
     });
 
     let b = bridge.clone();
-    bridge.register_function("engine.console.functions", move |_input| {
+    bridge.register_function("engine.console.functions", move |input| {
         let bridge = b.clone();
-        async move { Ok(handle_functions_list(&bridge).await) }
+        async move { Ok(handle_functions_list(&bridge, input).await) }
     });
 
     let b = bridge.clone();
-    bridge.register_function("engine.console.triggers", move |_input| {
+    bridge.register_function("engine.console.triggers", move |input| {
         let bridge = b.clone();
-        async move { Ok(handle_triggers_list(&bridge).await) }
+        async move { Ok(handle_triggers_list(&bridge, input).await) }
     });
 
     let b = bridge.clone();

@@ -48,8 +48,8 @@ export const Route = createFileRoute('/config')({
       queryClient.prefetchQuery(triggerTypesQuery),
       queryClient.prefetchQuery(adaptersQuery),
       queryClient.prefetchQuery(statusQuery),
-      queryClient.prefetchQuery(functionsQuery),
-      queryClient.prefetchQuery(triggersQuery),
+      queryClient.prefetchQuery(functionsQuery()),
+      queryClient.prefetchQuery(triggersQuery()),
       queryClient.prefetchQuery(streamsQuery),
     ])
   },
@@ -98,8 +98,8 @@ function ConfigPage() {
   const { data: triggerTypesData } = useQuery(triggerTypesQuery)
   const { data: adaptersData, refetch: refetchAdapters } = useQuery(adaptersQuery)
   const { data: statusData, refetch: refetchStatus } = useQuery(statusQuery)
-  const { data: functionsData } = useQuery(functionsQuery)
-  const { data: triggersData } = useQuery(triggersQuery)
+  const { data: functionsData } = useQuery(functionsQuery({ include_internal: showSystem }))
+  const { data: triggersData } = useQuery(triggersQuery({ include_internal: showSystem }))
   const { data: streamsData } = useQuery(streamsQuery)
 
   const devtoolsConfig = configData || null

@@ -37,8 +37,13 @@ export interface EventsInfo {
 // Functions
 // ============================================================================
 
-export async function fetchFunctions(): Promise<{ functions: FunctionInfo[]; count: number }> {
-  const res = await fetch(`${getDevtoolsApi()}/functions`)
+export async function fetchFunctions(options?: {
+  include_internal?: boolean
+}): Promise<{ functions: FunctionInfo[]; count: number }> {
+  const params = new URLSearchParams()
+  if (options?.include_internal) params.set('include_internal', 'true')
+  const qs = params.toString()
+  const res = await fetch(`${getDevtoolsApi()}/functions${qs ? `?${qs}` : ''}`)
   if (!res.ok) throw new Error('Failed to fetch functions')
   const data = await unwrapResponse<{ functions: FunctionInfo[] }>(res)
   return {
@@ -47,9 +52,14 @@ export async function fetchFunctions(): Promise<{ functions: FunctionInfo[]; cou
   }
 }
 
-export async function fetchTriggers(): Promise<{ triggers: TriggerInfo[]; count: number }> {
+export async function fetchTriggers(options?: {
+  include_internal?: boolean
+}): Promise<{ triggers: TriggerInfo[]; count: number }> {
+  const params = new URLSearchParams()
+  if (options?.include_internal) params.set('include_internal', 'true')
+  const qs = params.toString()
   try {
-    const res = await fetch(`${getDevtoolsApi()}/triggers`)
+    const res = await fetch(`${getDevtoolsApi()}/triggers${qs ? `?${qs}` : ''}`)
     if (res.ok) {
       const data = await unwrapResponse<{ triggers: TriggerInfo[] }>(res)
       return {
@@ -61,7 +71,7 @@ export async function fetchTriggers(): Promise<{ triggers: TriggerInfo[]; count:
     // Fall through to management API
   }
 
-  const res = await fetch(`${getManagementApi()}/triggers`)
+  const res = await fetch(`${getManagementApi()}/triggers${qs ? `?${qs}` : ''}`)
   if (!res.ok) throw new Error('Failed to fetch triggers')
   const data = await res.json()
   return {
