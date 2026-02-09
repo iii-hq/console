@@ -1,11 +1,11 @@
-use iii_sdk::Bridge;
+use iii_sdk::III;
 use serde_json::{json, Value};
 use std::collections::HashSet;
 use std::time::Duration;
 
 use crate::bridge::error::{error_response, success_response};
 
-async fn handle_health(bridge: &Bridge) -> Value {
+async fn handle_health(bridge: &III) -> Value {
     match bridge
         .invoke_function_with_timeout("engine.health.check", json!({}), Duration::from_secs(5))
         .await
@@ -15,7 +15,7 @@ async fn handle_health(bridge: &Bridge) -> Value {
     }
 }
 
-async fn handle_workers(bridge: &Bridge) -> Value {
+async fn handle_workers(bridge: &III) -> Value {
     match bridge
         .invoke_function_with_timeout("engine.workers.list", json!({}), Duration::from_secs(5))
         .await
@@ -25,7 +25,7 @@ async fn handle_workers(bridge: &Bridge) -> Value {
     }
 }
 
-async fn handle_triggers_list(bridge: &Bridge) -> Value {
+async fn handle_triggers_list(bridge: &III) -> Value {
     match bridge
         .invoke_function_with_timeout("engine.triggers.list", json!({}), Duration::from_secs(5))
         .await
@@ -35,7 +35,7 @@ async fn handle_triggers_list(bridge: &Bridge) -> Value {
     }
 }
 
-async fn handle_functions_list(bridge: &Bridge) -> Value {
+async fn handle_functions_list(bridge: &III) -> Value {
     match bridge
         .invoke_function_with_timeout("engine.functions.list", json!({}), Duration::from_secs(5))
         .await
@@ -45,7 +45,7 @@ async fn handle_functions_list(bridge: &Bridge) -> Value {
     }
 }
 
-async fn handle_status(bridge: &Bridge) -> Value {
+async fn handle_status(bridge: &III) -> Value {
     let (workers_result, functions_result, metrics_result) = tokio::join!(
         bridge.invoke_function_with_timeout("engine.workers.list", json!({}), Duration::from_secs(5)),
         bridge.invoke_function_with_timeout(
@@ -80,7 +80,7 @@ async fn handle_status(bridge: &Bridge) -> Value {
     }))
 }
 
-async fn handle_trigger_types(bridge: &Bridge) -> Value {
+async fn handle_trigger_types(bridge: &III) -> Value {
     let static_types = vec![
         "api",
         "event",
@@ -126,7 +126,7 @@ async fn handle_trigger_types(bridge: &Bridge) -> Value {
     }
 }
 
-async fn handle_alerts_list(bridge: &Bridge) -> Value {
+async fn handle_alerts_list(bridge: &III) -> Value {
     match bridge
         .invoke_function_with_timeout("engine.alerts.list", json!({}), Duration::from_secs(5))
         .await
@@ -136,7 +136,7 @@ async fn handle_alerts_list(bridge: &Bridge) -> Value {
     }
 }
 
-async fn handle_sampling_rules(bridge: &Bridge) -> Value {
+async fn handle_sampling_rules(bridge: &III) -> Value {
     match bridge
         .invoke_function_with_timeout("engine.sampling.rules", json!({}), Duration::from_secs(5))
         .await
@@ -146,7 +146,7 @@ async fn handle_sampling_rules(bridge: &Bridge) -> Value {
     }
 }
 
-async fn handle_otel_logs_list(bridge: &Bridge, input: Value) -> Value {
+async fn handle_otel_logs_list(bridge: &III, input: Value) -> Value {
     let effective_input = input.get("body").cloned().unwrap_or(input);
     match bridge
         .invoke_function_with_timeout("engine.logs.list", effective_input, Duration::from_secs(5))
@@ -157,7 +157,7 @@ async fn handle_otel_logs_list(bridge: &Bridge, input: Value) -> Value {
     }
 }
 
-async fn handle_otel_logs_clear(bridge: &Bridge) -> Value {
+async fn handle_otel_logs_clear(bridge: &III) -> Value {
     match bridge
         .invoke_function_with_timeout("engine.logs.clear", json!({}), Duration::from_secs(5))
         .await
@@ -167,7 +167,7 @@ async fn handle_otel_logs_clear(bridge: &Bridge) -> Value {
     }
 }
 
-async fn handle_otel_traces_list(bridge: &Bridge, input: Value) -> Value {
+async fn handle_otel_traces_list(bridge: &III, input: Value) -> Value {
     let effective_input = input.get("body").cloned().unwrap_or(input);
     match bridge
         .invoke_function_with_timeout("engine.traces.list", effective_input, Duration::from_secs(5))
@@ -178,7 +178,7 @@ async fn handle_otel_traces_list(bridge: &Bridge, input: Value) -> Value {
     }
 }
 
-async fn handle_otel_traces_clear(bridge: &Bridge) -> Value {
+async fn handle_otel_traces_clear(bridge: &III) -> Value {
     match bridge
         .invoke_function_with_timeout("engine.traces.clear", json!({}), Duration::from_secs(5))
         .await
@@ -188,7 +188,7 @@ async fn handle_otel_traces_clear(bridge: &Bridge) -> Value {
     }
 }
 
-async fn handle_otel_traces_tree(bridge: &Bridge, input: Value) -> Value {
+async fn handle_otel_traces_tree(bridge: &III, input: Value) -> Value {
     // Extract trace_id from body wrapper or top-level input
     // API triggers wrap POST body inside a "body" field
     let trace_id = input
@@ -200,7 +200,7 @@ async fn handle_otel_traces_tree(bridge: &Bridge, input: Value) -> Value {
     let trace_id = match trace_id {
         Some(id) => id.to_string(),
         None => {
-            return error_response(iii_sdk::BridgeError::Handler(
+            return error_response(iii_sdk::IIIError::Handler(
                 "Missing trace_id in request".to_string(),
             ))
         }
@@ -217,7 +217,7 @@ async fn handle_otel_traces_tree(bridge: &Bridge, input: Value) -> Value {
     }
 }
 
-async fn handle_metrics_detailed(bridge: &Bridge, input: Value) -> Value {
+async fn handle_metrics_detailed(bridge: &III, input: Value) -> Value {
     let effective_input = input.get("body").cloned().unwrap_or(input);
     match bridge
         .invoke_function_with_timeout("engine.metrics.list", effective_input, Duration::from_secs(5))
@@ -228,7 +228,7 @@ async fn handle_metrics_detailed(bridge: &Bridge, input: Value) -> Value {
     }
 }
 
-async fn handle_rollups_list(bridge: &Bridge, input: Value) -> Value {
+async fn handle_rollups_list(bridge: &III, input: Value) -> Value {
     let effective_input = input.get("body").cloned().unwrap_or(input);
     match bridge
         .invoke_function_with_timeout("engine.rollups.list", effective_input, Duration::from_secs(5))
@@ -239,7 +239,7 @@ async fn handle_rollups_list(bridge: &Bridge, input: Value) -> Value {
     }
 }
 
-async fn handle_state_groups_list(bridge: &Bridge, _input: Value) -> Value {
+async fn handle_state_groups_list(bridge: &III, _input: Value) -> Value {
     // Always use state.list_groups - no filtering by stream_name needed
     match bridge
         .invoke_function_with_timeout("state.list_groups", json!({}), Duration::from_secs(5))
@@ -265,7 +265,7 @@ async fn handle_state_groups_list(bridge: &Bridge, _input: Value) -> Value {
     }
 }
 
-async fn handle_state_group_items(bridge: &Bridge, input: Value) -> Value {
+async fn handle_state_group_items(bridge: &III, input: Value) -> Value {
     // Extract group_id from body or top-level input
     let group_id = input
         .get("body")
@@ -299,14 +299,14 @@ async fn handle_state_group_items(bridge: &Bridge, input: Value) -> Value {
             }
         }
         None => {
-            error_response(iii_sdk::BridgeError::Handler(
+            error_response(iii_sdk::IIIError::Handler(
                 "Missing group_id in request".to_string(),
             ))
         }
     }
 }
 
-async fn handle_state_item_set(bridge: &Bridge, input: Value) -> Value {
+async fn handle_state_item_set(bridge: &III, input: Value) -> Value {
     // Extract path parameters (from URL: /states/:group/item)
     let path_params = input.get("path_parameters");
     let body = input.get("body");
@@ -319,7 +319,7 @@ async fn handle_state_item_set(bridge: &Bridge, input: Value) -> Value {
     let group_id = match group_id {
         Some(id) => id.to_string(),
         None => {
-            return error_response(iii_sdk::BridgeError::Handler(
+            return error_response(iii_sdk::IIIError::Handler(
                 "Missing group in path parameters".to_string(),
             ))
         }
@@ -334,7 +334,7 @@ async fn handle_state_item_set(bridge: &Bridge, input: Value) -> Value {
     let item_id = match item_id {
         Some(id) => id.to_string(),
         None => {
-            return error_response(iii_sdk::BridgeError::Handler(
+            return error_response(iii_sdk::IIIError::Handler(
                 "Missing key in request body".to_string(),
             ))
         }
@@ -347,7 +347,7 @@ async fn handle_state_item_set(bridge: &Bridge, input: Value) -> Value {
     let data = match data {
         Some(value) => value.clone(),
         None => {
-            return error_response(iii_sdk::BridgeError::Handler(
+            return error_response(iii_sdk::IIIError::Handler(
                 "Missing value in request body".to_string(),
             ))
         }
@@ -368,7 +368,7 @@ async fn handle_state_item_set(bridge: &Bridge, input: Value) -> Value {
     }
 }
 
-async fn handle_state_item_delete(bridge: &Bridge, input: Value) -> Value {
+async fn handle_state_item_delete(bridge: &III, input: Value) -> Value {
     // Extract path parameters (from URL: /states/:group/item/:key)
     let path_params = input.get("path_params");
 
@@ -381,7 +381,7 @@ async fn handle_state_item_delete(bridge: &Bridge, input: Value) -> Value {
     let group_id = match group_id {
         Some(id) => id.to_string(),
         None => {
-            return error_response(iii_sdk::BridgeError::Handler(
+            return error_response(iii_sdk::IIIError::Handler(
                 "Missing group in path parameters".to_string(),
             ))
         }
@@ -395,7 +395,7 @@ async fn handle_state_item_delete(bridge: &Bridge, input: Value) -> Value {
     let item_id = match item_id {
         Some(id) => id.to_string(),
         None => {
-            return error_response(iii_sdk::BridgeError::Handler(
+            return error_response(iii_sdk::IIIError::Handler(
                 "Missing key in path parameters".to_string(),
             ))
         }
@@ -415,7 +415,7 @@ async fn handle_state_item_delete(bridge: &Bridge, input: Value) -> Value {
     }
 }
 
-async fn handle_streams_list(bridge: &Bridge) -> Value {
+async fn handle_streams_list(bridge: &III) -> Value {
     match bridge
         .invoke_function_with_timeout("streams.listAll", json!({}), Duration::from_secs(10))
         .await
@@ -463,7 +463,7 @@ async fn handle_streams_list(bridge: &Bridge) -> Value {
     }
 }
 
-pub fn register_functions(bridge: &Bridge) {
+pub fn register_functions(bridge: &III) {
     let b = bridge.clone();
     bridge.register_function("console.health", move |_input| {
         let bridge = b.clone();
