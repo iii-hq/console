@@ -65,10 +65,13 @@ export function TraceMap({ data, onSpanClick }: TraceMapProps) {
       })
     })
 
+    // Build span lookup for O(1) parent resolution
+    const spanById = new Map(data.spans.map((s) => [s.span_id, s]))
+
     // Second pass: build edges based on parent-child relationships
     data.spans.forEach((span) => {
       if (span.parent_span_id) {
-        const parentSpan = data.spans.find((s) => s.span_id === span.parent_span_id)
+        const parentSpan = spanById.get(span.parent_span_id)
         if (parentSpan) {
           const fromService = parentSpan.service_name || parentSpan.name.split('.')[0] || 'unknown'
           const toService = span.service_name || span.name.split('.')[0] || 'unknown'

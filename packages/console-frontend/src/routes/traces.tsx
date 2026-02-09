@@ -3,22 +3,18 @@ import {
   Activity,
   AlertCircle,
   CheckCircle2,
-  ExternalLink,
   Eye,
   EyeOff,
   GitBranch,
-  Hash,
   RefreshCw,
-  Search,
   Timer,
   Wifi,
   WifiOff,
-  X,
   XCircle,
   Zap,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { fetchTraces } from '@/api'
+import { fetchTraces, fetchTraceTree } from '@/api'
 import { FlameGraph } from '@/components/traces/FlameGraph'
 import { ServiceBreakdown } from '@/components/traces/ServiceBreakdown'
 import { SpanPanel } from '@/components/traces/SpanPanel'
@@ -27,13 +23,13 @@ import { TraceHeader } from '@/components/traces/TraceHeader'
 import { TraceMap } from '@/components/traces/TraceMap'
 import { ViewSwitcher, type ViewType } from '@/components/traces/ViewSwitcher'
 import { WaterfallChart } from '@/components/traces/WaterfallChart'
-import { Badge, Button, Input } from '@/components/ui/card'
+import { Badge, Button } from '@/components/ui/card'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { Pagination } from '@/components/ui/pagination'
 import { useTraceFilters } from '@/hooks/useTraceFilters'
 import {
   toMs,
-  toWaterfallData,
+  treeToWaterfallData,
   type VisualizationSpan,
   type WaterfallData,
 } from '@/lib/traceTransform'
@@ -101,6 +97,7 @@ function TracesPage() {
     updateFilter,
     resetFilters,
     getActiveFilterCount,
+    getApiParams,
     validationWarnings,
     clearValidationWarnings,
   } = useTraceFilters()
@@ -110,62 +107,46 @@ function TracesPage() {
   const loadTraces = useCallback(async () => {
     setIsLoading(true)
     try {
-      const data = await fetchTraces({ limit: 10000 })
+      const params = getApiParams()
+      const data = await fetchTraces({ ...params, limit: params.limit || 10000 })
 
       if (data.spans && data.spans.length > 0) {
-        const traceMap = new Map<string, typeof data.spans>()
+        // engine.traces.list now returns only root spans, so each span is a trace row
+        const traces: TraceGroup[] = data.spans.map((span) => {
+          const startTime = toMs(span.start_time_unix_nano)
+          const endTime = toMs(span.end_time_unix_nano)
+          const duration = endTime - startTime
 
-        for (const span of data.spans) {
-          const existing = traceMap.get(span.trace_id) || []
-          existing.push(span)
-          traceMap.set(span.trace_id, existing)
-        }
-
-        const traces: TraceGroup[] = []
-
-        for (const [traceId, traceSpans] of traceMap) {
-          const spanIds = new Set(traceSpans.map((s) => s.span_id))
-          const rootSpan = traceSpans.find(
-            (s) => !s.parent_span_id || !spanIds.has(s.parent_span_id),
-          )
-
-          if (!rootSpan) continue
-
-          const minStart = Math.min(...traceSpans.map((s) => toMs(s.start_time_unix_nano)))
-          const maxEnd = Math.max(...traceSpans.map((s) => toMs(s.end_time_unix_nano)))
-          const duration = maxEnd - minStart
-
-          const hasError = traceSpans.some((s) => s.status.toLowerCase() === 'error')
-          const services = [...new Set(traceSpans.map((s) => s.service_name || 'unknown'))]
-
-          traces.push({
-            traceId,
-            trace_id: traceId,
-            rootOperation: rootSpan.name,
-            root_operation: rootSpan.name,
-            status: hasError ? 'error' : 'ok',
-            startTime: minStart,
-            endTime: maxEnd,
+          return {
+            traceId: span.trace_id,
+            trace_id: span.trace_id,
+            rootOperation: span.name,
+            root_operation: span.name,
+            status: span.status.toLowerCase() === 'error' ? 'error' : 'ok',
+            startTime,
+            endTime,
             duration,
-            spanCount: traceSpans.length,
-            services,
-          })
-        }
+            spanCount: 1,
+            services: [span.service_name || 'unknown'],
+          }
+        })
 
         traces.sort((a, b) => b.startTime - a.startTime)
 
         setTraceGroups(traces)
         setHasOtelConfigured(true)
       } else {
+        setTraceGroups([])
         setHasOtelConfigured(false)
       }
     } catch (error) {
       console.error('Failed to load traces:', error)
+      setTraceGroups([])
       setHasOtelConfigured(false)
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [getApiParams])
 
   const loadTraceSpans = useCallback(async (traceId: string) => {
     setIsLoadingSpans(true)
@@ -173,24 +154,24 @@ function TracesPage() {
     setWaterfallData(null)
 
     try {
-      const data = await fetchTraces({ trace_id: traceId })
+      const data = await fetchTraceTree(traceId)
 
-      if (data.spans && data.spans.length > 0) {
-        const wfData = toWaterfallData(data.spans, traceId)
+      if (data.roots && data.roots.length > 0) {
+        const wfData = treeToWaterfallData(data.roots)
 
         if (wfData) {
           setWaterfallData(wfData)
           setSpansError(null)
         } else {
-          console.warn('[Traces] toWaterfallData returned null')
+          console.warn('[Traces] treeToWaterfallData returned null')
           setSpansError('Failed to process span data')
         }
       } else {
-        console.warn('[Traces] No spans found for trace:', traceId)
+        console.warn('[Traces] No roots found for trace:', traceId)
         setSpansError('No span data available for this trace')
       }
     } catch (error) {
-      console.error('[Traces] Failed to load trace spans:', error)
+      console.error('[Traces] Failed to load trace tree:', error)
       setSpansError(error instanceof Error ? error.message : 'Failed to load trace details')
     } finally {
       setIsLoadingSpans(false)
@@ -214,19 +195,49 @@ function TracesPage() {
 
   const selectedTrace = traceGroups.find((g) => g.traceId === selectedTraceId)
 
-  const totalPages = Math.max(1, Math.ceil(traceGroups.length / filterState.pageSize))
+  const filteredTraces = useMemo(() => {
+    return traceGroups.filter((group) => {
+      // Search filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase()
+        const matchesId = group.traceId.toLowerCase().includes(query)
+        const matchesOp = group.rootOperation.toLowerCase().includes(query)
+        if (!matchesId && !matchesOp) return false
+      }
+      // System traces filter (traces from internal services)
+      if (!showSystem) {
+        const isSystem = group.services.some(
+          (s) => s.startsWith('iii.') || s.startsWith('iii:') || s === 'console',
+        )
+        if (isSystem) return false
+      }
+      return true
+    })
+  }, [traceGroups, searchQuery, showSystem])
+
+  const totalPages = Math.max(1, Math.ceil(filteredTraces.length / filterState.pageSize))
+
+  const pagedTraces = useMemo(() => {
+    const start = (filterState.page - 1) * filterState.pageSize
+    return filteredTraces.slice(start, start + filterState.pageSize)
+  }, [filteredTraces, filterState.page, filterState.pageSize])
+
+  useEffect(() => {
+    if (selectedTraceId && !pagedTraces.some((g) => g.traceId === selectedTraceId)) {
+      setSelectedTraceId(null)
+    }
+  }, [pagedTraces, selectedTraceId])
 
   const stats = useMemo(
     () => ({
-      totalTraces: traceGroups.length,
-      totalSpans: traceGroups.reduce((sum, g) => sum + g.spanCount, 0),
-      errorCount: traceGroups.filter((g) => g.status === 'error').length,
+      totalTraces: filteredTraces.length,
+      errorCount: filteredTraces.filter((g) => g.status === 'error').length,
       avgDuration:
-        traceGroups.length > 0
-          ? traceGroups.reduce((sum, g) => sum + (g.duration || 0), 0) / traceGroups.length
+        filteredTraces.length > 0
+          ? filteredTraces.reduce((sum, g) => sum + (g.duration || 0), 0) / filteredTraces.length
           : 0,
     }),
-    [traceGroups],
+    [filteredTraces],
   )
 
   return (
@@ -279,235 +290,177 @@ function TracesPage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 p-2 border-b border-border bg-dark-gray/20">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
-          <Input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 pr-9 h-9 font-medium"
-            placeholder="Search by Trace ID or Operation"
+      <div className="px-4 py-2 border-b border-border">
+        <ErrorBoundary>
+          <TraceFilters
+            filters={filterState}
+            onFilterChange={updateFilter}
+            onClear={resetFilters}
+            validationWarnings={validationWarnings}
+            onClearWarnings={clearValidationWarnings}
+            isLoading={isLoading}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            stats={hasOtelConfigured ? stats : undefined}
           />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-
-        <div className="flex items-center gap-4 px-2 text-xs text-muted">
-          <div className="flex items-center gap-1.5">
-            <Hash className="w-3 h-3" />
-            <span className="font-medium text-foreground tabular-nums">{stats.totalTraces}</span>
-            traces
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Zap className="w-3 h-3" />
-            <span className="font-medium text-foreground tabular-nums">{stats.totalSpans}</span>
-            spans
-          </div>
-          {stats.errorCount > 0 && (
-            <div className="flex items-center gap-1.5 text-error">
-              <XCircle className="w-3 h-3" />
-              <span className="font-medium tabular-nums">{stats.errorCount}</span>
-              errors
-            </div>
-          )}
-          <div className="flex items-center gap-1.5">
-            <Timer className="w-3 h-3" />
-            <span className="font-medium text-foreground tabular-nums">
-              {formatDuration(stats.avgDuration)}
-            </span>
-            avg
-          </div>
-        </div>
+        </ErrorBoundary>
       </div>
 
-      {hasOtelConfigured && (
-        <div className="px-4 py-2 border-b border-border">
-          <ErrorBoundary>
-            <TraceFilters
-              filters={filterState}
-              onFilterChange={updateFilter}
-              onClear={resetFilters}
-              activeCount={activeFilterCount}
-              validationWarnings={validationWarnings}
-              onClearWarnings={clearValidationWarnings}
-              isLoading={isLoading}
-            />
-          </ErrorBoundary>
-        </div>
-      )}
-
-      {!hasOtelConfigured && (
-        <div className="flex-1 flex items-center justify-center p-8">
-          <div className="text-center max-w-md">
-            <div className="w-16 h-16 mb-4 mx-auto rounded-2xl bg-dark-gray border border-border flex items-center justify-center">
-              <AlertCircle className="w-8 h-8 text-yellow" />
-            </div>
-            <h3 className="text-sm font-medium mb-2">OpenTelemetry Not Configured</h3>
-            <p className="text-xs text-muted mb-4">
-              Configure{' '}
-              <code className="bg-dark-gray px-1 rounded font-mono">opentelemetry-rust</code> in the
-              iii engine to enable distributed tracing.
-            </p>
-            <a
-              href="https://github.com/open-telemetry/opentelemetry-rust"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-yellow hover:underline"
-            >
-              Learn more about OpenTelemetry <ExternalLink className="w-3 h-3" />
-            </a>
-          </div>
-        </div>
-      )}
-
-      {hasOtelConfigured && (
-        <div className="flex-1 flex overflow-hidden">
-          <div className="flex flex-col flex-1 overflow-hidden">
-            <div className="flex-1 overflow-y-auto">
-              {isLoading && traceGroups.length === 0 ? (
-                <div className="flex items-center justify-center h-32">
-                  <RefreshCw className="w-5 h-5 text-muted animate-spin" />
-                </div>
-              ) : traceGroups.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-64 px-4">
-                  <div className="w-12 h-12 mb-3 rounded-xl bg-dark-gray border border-border flex items-center justify-center">
-                    <GitBranch className="w-6 h-6 text-muted" />
-                  </div>
-                  <div className="text-sm font-medium mb-1">No traces found</div>
-                  <div className="text-xs text-muted text-center">
-                    Traces will appear here when OpenTelemetry is configured
-                  </div>
-                </div>
-              ) : (
-                traceGroups.map((group) => {
-                  const isSelected = selectedTraceId === group.traceId
-
-                  return (
-                    <button
-                      key={group.traceId}
-                      type="button"
-                      onClick={() => setSelectedTraceId(isSelected ? null : group.traceId)}
-                      className={`w-full p-3 border-b border-border text-left transition-colors
-                        ${isSelected ? 'bg-primary/10 border-l-2 border-l-primary' : 'hover:bg-dark-gray/50'}
-                      `}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        {group.status === 'ok' ? (
-                          <CheckCircle2 className="w-3.5 h-3.5 text-success" />
-                        ) : group.status === 'error' ? (
-                          <XCircle className="w-3.5 h-3.5 text-error" />
-                        ) : (
-                          <Activity className="w-3.5 h-3.5 text-yellow animate-pulse" />
-                        )}
-                        <span className="font-medium text-sm truncate flex-1">
-                          {group.rootOperation}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-3 text-[10px] text-muted">
-                        <code className="font-mono">{group.traceId.slice(0, 8)}</code>
-                        <span className="flex items-center gap-1">
-                          <Zap className="w-2.5 h-2.5" />
-                          {group.spanCount}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Timer className="w-2.5 h-2.5" />
-                          {formatDuration(group.duration)}
-                        </span>
-                        <span className="ml-auto">{formatTime(group.startTime)}</span>
-                      </div>
-                    </button>
-                  )
-                })
-              )}
-            </div>
-
-            {traceGroups.length > 0 && (
-              <div className="flex-shrink-0 bg-background/95 backdrop-blur border-t border-border px-3 py-2">
-                <Pagination
-                  currentPage={filterState.page}
-                  totalPages={totalPages}
-                  totalItems={traceGroups.length}
-                  pageSize={filterState.pageSize}
-                  onPageChange={(page) => updateFilter('page', page)}
-                  onPageSizeChange={(pageSize) => updateFilter('pageSize', pageSize)}
-                  pageSizeOptions={[25, 50, 100]}
-                />
+      <div className="flex-1 flex overflow-hidden">
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <div className="flex-1 overflow-y-auto">
+            {isLoading && traceGroups.length === 0 ? (
+              <div className="flex items-center justify-center h-32">
+                <RefreshCw className="w-5 h-5 text-muted animate-spin" />
               </div>
+            ) : filteredTraces.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center p-12">
+                <div className="text-center max-w-xs">
+                  <div className="w-10 h-10 mb-3 mx-auto rounded-lg bg-dark-gray border border-border flex items-center justify-center">
+                    <GitBranch className="w-5 h-5 text-muted" />
+                  </div>
+                  <h3 className="text-xs font-medium mb-1 text-foreground">No traces found</h3>
+                  <p className="text-[11px] text-muted leading-relaxed">
+                    {activeFilterCount > 0 || searchQuery
+                      ? 'No traces match the current filters. Try adjusting or clearing them.'
+                      : 'No traces recorded yet. They will appear here once available.'}
+                  </p>
+                  {(activeFilterCount > 0 || searchQuery) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        resetFilters()
+                        setSearchQuery('')
+                      }}
+                      className="mt-2.5 text-[11px] text-yellow hover:underline"
+                    >
+                      Clear all filters
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              pagedTraces.map((group) => {
+                const isSelected = selectedTraceId === group.traceId
+
+                return (
+                  <button
+                    key={group.traceId}
+                    type="button"
+                    onClick={() => setSelectedTraceId(isSelected ? null : group.traceId)}
+                    className={`w-full p-3 border-b border-border text-left transition-colors
+                      ${isSelected ? 'bg-primary/10 border-l-2 border-l-primary' : 'hover:bg-dark-gray/50'}
+                    `}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      {group.status === 'ok' ? (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-success" />
+                      ) : group.status === 'error' ? (
+                        <XCircle className="w-3.5 h-3.5 text-error" />
+                      ) : (
+                        <Activity className="w-3.5 h-3.5 text-yellow animate-pulse" />
+                      )}
+                      <span className="font-medium text-sm truncate flex-1">
+                        {group.rootOperation}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-3 text-[10px] text-muted">
+                      <code className="font-mono">{group.traceId.slice(0, 8)}</code>
+                      <span className="flex items-center gap-1">
+                        <Timer className="w-2.5 h-2.5" />
+                        {formatDuration(group.duration)}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Zap className="w-2.5 h-2.5" />
+                        {group.services.join(', ')}
+                      </span>
+                      <span className="ml-auto">{formatTime(group.startTime)}</span>
+                    </div>
+                  </button>
+                )
+              })
             )}
           </div>
 
-          {selectedTrace && (
-            <div className="w-[500px] border-l border-border bg-dark-gray/20 flex flex-col h-full overflow-hidden">
-              {isLoadingSpans && (
-                <div className="flex-1 flex flex-col items-center justify-center p-8">
-                  <RefreshCw className="w-8 h-8 text-yellow animate-spin mb-4" />
-                  <div className="text-sm font-medium mb-2">Loading trace details...</div>
-                  <div className="text-xs text-muted">
-                    Trace ID: {selectedTrace.traceId.slice(0, 8)}
-                  </div>
-                </div>
-              )}
-
-              {!isLoadingSpans && spansError && (
-                <div className="flex-1 flex flex-col items-center justify-center p-8">
-                  <div className="w-12 h-12 mb-4 rounded-xl bg-dark-gray border border-border flex items-center justify-center">
-                    <AlertCircle className="w-6 h-6 text-error" />
-                  </div>
-                  <div className="text-sm font-medium mb-2 text-error">
-                    Failed to load trace details
-                  </div>
-                  <div className="text-xs text-muted text-center mb-4 max-w-xs">{spansError}</div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => loadTraceSpans(selectedTrace.traceId)}
-                    className="text-xs"
-                  >
-                    <RefreshCw className="w-3 h-3 mr-1.5" />
-                    Retry
-                  </Button>
-                </div>
-              )}
-
-              {!isLoadingSpans && !spansError && waterfallData && (
-                <>
-                  <TraceHeader data={waterfallData} traceId={selectedTrace.traceId} />
-
-                  <div className="border-b border-border p-4">
-                    <ViewSwitcher currentView={activeView} onViewChange={setActiveView} />
-                  </div>
-
-                  <div className="flex-1 overflow-auto">
-                    {activeView === 'waterfall' && (
-                      <WaterfallChart data={waterfallData} onSpanClick={setSelectedSpan} />
-                    )}
-
-                    {activeView === 'flamegraph' && (
-                      <FlameGraph data={waterfallData} onSpanClick={setSelectedSpan} />
-                    )}
-
-                    {activeView === 'map' && (
-                      <TraceMap data={waterfallData} onSpanClick={setSelectedSpan} />
-                    )}
-                  </div>
-
-                  <div className="border-t border-border">
-                    <ServiceBreakdown data={waterfallData} />
-                  </div>
-                </>
-              )}
+          {filteredTraces.length > 0 && (
+            <div className="flex-shrink-0 bg-background/95 backdrop-blur border-t border-border px-3 py-2">
+              <Pagination
+                currentPage={filterState.page}
+                totalPages={totalPages}
+                totalItems={filteredTraces.length}
+                pageSize={filterState.pageSize}
+                onPageChange={(page) => updateFilter('page', page)}
+                onPageSizeChange={(pageSize) => updateFilter('pageSize', pageSize)}
+                pageSizeOptions={[25, 50, 100]}
+              />
             </div>
           )}
         </div>
-      )}
+
+        {selectedTrace && (
+          <div className="w-[500px] border-l border-border bg-dark-gray/20 flex flex-col h-full overflow-hidden">
+            {isLoadingSpans && (
+              <div className="flex-1 flex flex-col items-center justify-center p-8">
+                <RefreshCw className="w-8 h-8 text-yellow animate-spin mb-4" />
+                <div className="text-sm font-medium mb-2">Loading trace details...</div>
+                <div className="text-xs text-muted">
+                  Trace ID: {selectedTrace.traceId.slice(0, 8)}
+                </div>
+              </div>
+            )}
+
+            {!isLoadingSpans && spansError && (
+              <div className="flex-1 flex flex-col items-center justify-center p-8">
+                <div className="w-12 h-12 mb-4 rounded-xl bg-dark-gray border border-border flex items-center justify-center">
+                  <AlertCircle className="w-6 h-6 text-error" />
+                </div>
+                <div className="text-sm font-medium mb-2 text-error">
+                  Failed to load trace details
+                </div>
+                <div className="text-xs text-muted text-center mb-4 max-w-xs">{spansError}</div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => loadTraceSpans(selectedTrace.traceId)}
+                  className="text-xs"
+                >
+                  <RefreshCw className="w-3 h-3 mr-1.5" />
+                  Retry
+                </Button>
+              </div>
+            )}
+
+            {!isLoadingSpans && !spansError && waterfallData && (
+              <>
+                <TraceHeader data={waterfallData} traceId={selectedTrace.traceId} />
+
+                <div className="border-b border-border p-4">
+                  <ViewSwitcher currentView={activeView} onViewChange={setActiveView} />
+                </div>
+
+                <div className="flex-1 overflow-auto">
+                  {activeView === 'waterfall' && (
+                    <WaterfallChart data={waterfallData} onSpanClick={setSelectedSpan} />
+                  )}
+
+                  {activeView === 'flamegraph' && (
+                    <FlameGraph data={waterfallData} onSpanClick={setSelectedSpan} />
+                  )}
+
+                  {activeView === 'map' && (
+                    <TraceMap data={waterfallData} onSpanClick={setSelectedSpan} />
+                  )}
+                </div>
+
+                <div className="border-t border-border">
+                  <ServiceBreakdown data={waterfallData} />
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
 
       <SpanPanel span={selectedSpan} onClose={() => setSelectedSpan(null)} />
     </div>

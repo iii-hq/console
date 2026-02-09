@@ -14,7 +14,7 @@ import {
   fetchMetricsHistory,
   fetchRollups,
 } from './observability/metrics'
-import { fetchTraces } from './observability/traces'
+import { fetchTraces, fetchTraceTree } from './observability/traces'
 import { fetchStateGroups, fetchStateItems } from './state/state'
 import { fetchStreams } from './state/streams'
 import { fetchAdapters } from './system/adapters'
@@ -174,6 +174,14 @@ export const otelTracesQuery = (options?: { trace_id?: string; offset?: number; 
   queryOptions({
     queryKey: ['otel-traces', options],
     queryFn: () => fetchTraces(options),
+  })
+
+// OTEL trace tree (single trace with nested children)
+export const otelTraceTreeQuery = (traceId: string) =>
+  queryOptions({
+    queryKey: ['otel-trace-tree', traceId],
+    queryFn: () => fetchTraceTree(traceId),
+    enabled: !!traceId,
   })
 
 // Detailed metrics with options

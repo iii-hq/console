@@ -1,4 +1,4 @@
-import { DEVTOOLS_API } from '../config'
+import { getDevtoolsApi } from '../config'
 import { unwrapResponse } from '../utils'
 
 export interface WorkerMetrics {
@@ -36,7 +36,7 @@ export async function fetchWorkers(): Promise<{
   count: number
   timestamp: number
 }> {
-  const res = await fetch(`${DEVTOOLS_API}/workers`)
+  const res = await fetch(`${getDevtoolsApi()}/workers`)
   if (!res.ok) throw new Error('Failed to fetch workers')
   const data = await unwrapResponse<{ workers: WorkerInfo[]; timestamp: number }>(res)
   return {

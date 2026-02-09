@@ -30,6 +30,10 @@ struct Args {
     /// Port for the iii engine WebSocket
     #[arg(long, default_value = "3112")]
     ws_port: u16,
+
+    /// Port for the iii engine bridge WebSocket
+    #[arg(long, default_value = "49134")]
+    bridge_port: u16,
 }
 
 async fn shutdown_signal() {
@@ -77,7 +81,7 @@ async fn main() -> Result<()> {
     );
 
     // Initialize bridge connection to iii engine
-    let bridge_url = format!("ws://{}:49134", args.engine_host);
+    let bridge_url = format!("ws://{}:{}", args.engine_host, args.bridge_port);
     let bridge = iii_sdk::Bridge::new(&bridge_url);
     
     // Register ALL functions and triggers BEFORE connecting

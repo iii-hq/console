@@ -5,7 +5,7 @@ use axum::{
     http::{header, HeaderValue, StatusCode},
     response::{Html, IntoResponse, Response},
     routing::get,
-    Router,
+    Json, Router,
 };
 use rust_embed::Embed;
 use serde_json::json;
@@ -63,6 +63,19 @@ fn get_index_html(config: &ServerConfig) -> String {
     index_content.replace("</head>", &format!("{}</head>", config_script))
 }
 
+/// Serve the /api/config endpoint with runtime configuration
+async fn serve_config(
+    axum::extract::State(config): axum::extract::State<std::sync::Arc<ServerConfig>>,
+) -> Json<serde_json::Value> {
+    Json(json!({
+        "engineHost": config.engine_host,
+        "enginePort": config.engine_port,
+        "wsPort": config.ws_port,
+        "consolePort": config.port,
+        "version": env!("CARGO_PKG_VERSION")
+    }))
+}
+
 /// Serve the index.html with runtime config
 async fn serve_index(
     axum::extract::State(config): axum::extract::State<std::sync::Arc<ServerConfig>>,
@@ -118,15 +131,37 @@ pub async fn run_server(config: ServerConfig) -> Result<()> {
 
     let config = std::sync::Arc::new(config);
 
-    // Build CORS layer - permissive for local development
+    // Build CORS layer - restrict to console origins
+    let mut origins: Vec<HeaderValue> = vec![
+        format!("http://127.0.0.1:{}", config.port).parse().unwrap(),
+        format!("http://localhost:{}", config.port).parse().unwrap(),
+        format!("https://127.0.0.1:{}", config.port).parse().unwrap(),
+        format!("https://localhost:{}", config.port).parse().unwrap(),
+    ];
+
+    // Add configured host origins if different from defaults
+    let cors_host = if config.host == "0.0.0.0" {
+        "localhost" // 0.0.0.0 is not a valid Origin host; browsers use the resolved name
+    } else {
+        &config.host
+    };
+    if cors_host != "localhost" && cors_host != "127.0.0.1" {
+        if let Ok(v) = format!("http://{}:{}", cors_host, config.port).parse::<HeaderValue>() {
+            origins.push(v);
+        }
+        if let Ok(v) = format!("https://{}:{}", cors_host, config.port).parse::<HeaderValue>() {
+            origins.push(v);
+        }
+    }
     let cors = CorsLayer::new()
-        .allow_origin(Any)
+        .allow_origin(origins)
         .allow_methods(Any)
         .allow_headers(Any);
 
     // Build the router
     let app = Router::new()
         .route("/", get(serve_index))
+        .route("/api/config", get(serve_config))
         .route("/{*path}", get(serve_static_or_index))
         .layer(cors)
         .with_state(config);

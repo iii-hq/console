@@ -3,7 +3,7 @@
  * Converts StoredSpan[] to visualization-ready format with computed depth, positioning
  */
 
-import type { StoredSpan } from '@/api'
+import type { SpanTreeNode, StoredSpan } from '@/api'
 
 /**
  * Visualization-ready span with computed positioning
@@ -166,6 +166,89 @@ export function toWaterfallData(spans: StoredSpan[], traceId: string): Waterfall
     const bStart = toMs(traceSpans.find((s) => s.span_id === b.span_id)?.start_time_unix_nano ?? 0)
     if (aStart !== bStart) return aStart - bStart
     return a.depth - b.depth
+  })
+
+  return {
+    spans: visualSpans,
+    total_duration_ms: totalDurationMs,
+    span_count: visualSpans.length,
+  }
+}
+
+/**
+ * Flatten a SpanTreeNode tree into a flat list of StoredSpan-like objects
+ * Depth is computed naturally from tree nesting level
+ */
+function flattenTree(
+  nodes: SpanTreeNode[],
+  depth: number = 0,
+): Array<{ span: SpanTreeNode; depth: number }> {
+  const result: Array<{ span: SpanTreeNode; depth: number }> = []
+  for (const node of nodes) {
+    result.push({ span: node, depth })
+    if (node.children && node.children.length > 0) {
+      result.push(...flattenTree(node.children, depth + 1))
+    }
+  }
+  return result
+}
+
+/**
+ * Transform a trace tree response into WaterfallData
+ * Uses the tree structure to compute depth naturally instead of calculating from parent references
+ * @param roots - Root span tree nodes from the trace tree API
+ * @returns WaterfallData with computed positions and depths
+ */
+export function treeToWaterfallData(roots: SpanTreeNode[]): WaterfallData | null {
+  if (!roots || roots.length === 0) {
+    return null
+  }
+
+  // Flatten the tree with depth information
+  const flatSpans = flattenTree(roots)
+
+  if (flatSpans.length === 0) {
+    return null
+  }
+
+  // Calculate trace boundaries (in milliseconds)
+  const minStart = Math.min(...flatSpans.map((s) => toMs(s.span.start_time_unix_nano)))
+  const maxEnd = Math.max(...flatSpans.map((s) => toMs(s.span.end_time_unix_nano)))
+  const totalDurationMs = maxEnd - minStart
+
+  // Convert to VisualizationSpan format
+  const visualSpans: VisualizationSpan[] = flatSpans.map(({ span, depth }) => {
+    const durationMs = calculateDurationMs(span.start_time_unix_nano, span.end_time_unix_nano)
+    const startOffset = toMs(span.start_time_unix_nano) - minStart
+    const startPercent = totalDurationMs > 0 ? (startOffset / totalDurationMs) * 100 : 0
+    const widthPercent = totalDurationMs > 0 ? (durationMs / totalDurationMs) * 100 : 100
+
+    // Convert attributes array to Record
+    const attributesRecord: Record<string, unknown> = {}
+    if (span.attributes) {
+      for (const [key, value] of span.attributes) {
+        attributesRecord[key] = value
+      }
+    }
+
+    return {
+      name: span.name,
+      span_id: span.span_id,
+      parent_span_id: span.parent_span_id,
+      trace_id: span.trace_id,
+      duration_ms: durationMs,
+      status: getSpanStatus(span.status),
+      depth,
+      start_percent: startPercent,
+      width_percent: widthPercent,
+      attributes: attributesRecord,
+      events: span.events || [],
+      links: span.links || [],
+      service_name: span.service_name || (span.resource?.['service.name'] as string) || undefined,
+      instrumentation_scope_name: undefined,
+      instrumentation_scope_version: undefined,
+      flags: span.flags,
+    }
   })
 
   return {

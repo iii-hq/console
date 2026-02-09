@@ -1,4 +1,4 @@
-import { DEVTOOLS_API } from '../config'
+import { getDevtoolsApi } from '../config'
 import { unwrapResponse } from '../utils'
 
 export interface AdapterInfo {
@@ -13,7 +13,7 @@ export interface AdapterInfo {
 }
 
 export async function fetchAdapters(): Promise<{ adapters: AdapterInfo[]; count: number }> {
-  const res = await fetch(`${DEVTOOLS_API}/adapters`)
+  const res = await fetch(`${getDevtoolsApi()}/adapters`)
   if (!res.ok) throw new Error('Failed to fetch adapters')
   return unwrapResponse(res)
 }

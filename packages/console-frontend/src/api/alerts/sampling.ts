@@ -1,4 +1,4 @@
-import { DEVTOOLS_API, MANAGEMENT_API } from '../config'
+import { getDevtoolsApi, getManagementApi } from '../config'
 import { unwrapResponse } from '../utils'
 
 // ============================================================================
@@ -30,7 +30,7 @@ export interface SamplingRulesResponse {
 
 export async function fetchSamplingRules(): Promise<SamplingRulesResponse> {
   try {
-    const res = await fetch(`${DEVTOOLS_API}/sampling/rules`, {
+    const res = await fetch(`${getDevtoolsApi()}/sampling/rules`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
     })
@@ -41,7 +41,7 @@ export async function fetchSamplingRules(): Promise<SamplingRulesResponse> {
     // Fall through to management API
   }
 
-  const res = await fetch(`${MANAGEMENT_API}/sampling/rules`, {
+  const res = await fetch(`${getManagementApi()}/sampling/rules`, {
     method: 'GET',
     headers: { 'Content-Type': 'application/json' },
   })

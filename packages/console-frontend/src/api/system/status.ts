@@ -1,4 +1,4 @@
-import { DEVTOOLS_API, MANAGEMENT_API } from '../config'
+import { getDevtoolsApi, getManagementApi } from '../config'
 import { unwrapResponse } from '../utils'
 
 export interface SystemStatus {
@@ -40,7 +40,7 @@ export interface HealthStatus {
 
 export async function fetchStatus(): Promise<SystemStatus> {
   try {
-    const res = await fetch(`${DEVTOOLS_API}/status`)
+    const res = await fetch(`${getDevtoolsApi()}/status`)
     if (res.ok) {
       const data = await unwrapResponse<{
         status: string
@@ -64,7 +64,7 @@ export async function fetchStatus(): Promise<SystemStatus> {
     // Fall through to management API
   }
 
-  const res = await fetch(`${MANAGEMENT_API}/status`)
+  const res = await fetch(`${getManagementApi()}/status`)
   if (!res.ok) throw new Error('Failed to fetch status')
   const data = await res.json()
 
@@ -82,7 +82,7 @@ export async function fetchStatus(): Promise<SystemStatus> {
 
 export async function fetchConfig(): Promise<DevToolsConfig> {
   try {
-    const res = await fetch(`${DEVTOOLS_API}/config`)
+    const res = await fetch(`${getDevtoolsApi()}/config`)
     if (res.ok) {
       return unwrapResponse(res)
     }
@@ -90,20 +90,20 @@ export async function fetchConfig(): Promise<DevToolsConfig> {
     // Fall through to management API
   }
 
-  const res = await fetch(`${MANAGEMENT_API}/config`)
+  const res = await fetch(`${getManagementApi()}/config`)
   if (!res.ok) throw new Error('Failed to fetch config')
   return res.json()
 }
 
 export async function healthCheck(): Promise<HealthStatus> {
-  const res = await fetch(`${DEVTOOLS_API}/health`)
+  const res = await fetch(`${getDevtoolsApi()}/health`)
   if (!res.ok) throw new Error('Health check failed')
   return unwrapResponse(res)
 }
 
 export async function isDevToolsAvailable(): Promise<boolean> {
   try {
-    const res = await fetch(`${DEVTOOLS_API}/health`)
+    const res = await fetch(`${getDevtoolsApi()}/health`)
     return res.ok
   } catch {
     return false
@@ -112,7 +112,7 @@ export async function isDevToolsAvailable(): Promise<boolean> {
 
 export async function isManagementApiAvailable(): Promise<boolean> {
   try {
-    const res = await fetch(`${MANAGEMENT_API}/status`)
+    const res = await fetch(`${getManagementApi()}/status`)
     return res.ok
   } catch {
     return false

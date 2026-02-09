@@ -28,6 +28,7 @@ import {
 import { useState } from 'react'
 import type { FunctionInfo, TriggerInfo } from '@/api'
 import { emitEvent, functionsQuery, triggerCron, triggersQuery, workersQuery } from '@/api'
+import { getConfig } from '@/api/config'
 import { Badge, Button, Input, Select } from '@/components/ui/card'
 import { JsonViewer } from '@/components/ui/json-viewer'
 
@@ -266,7 +267,9 @@ function HandlersPage() {
           }
         }
 
-        const fullUrl = `http://localhost:3111/${path}${queryString}`
+        const { engineHost, enginePort } = getConfig()
+        const protocol = window.location.protocol
+        const fullUrl = `${protocol}//${engineHost}:${enginePort}/${path}${queryString}`
         const response = await fetch(fullUrl, fetchOptions)
         const duration = Date.now() - startTime
 
@@ -544,7 +547,11 @@ function HandlersPage() {
                               size="sm"
                               onClick={(e) => {
                                 e.stopPropagation()
-                                window.open(`http://localhost:3111/${apiPath}`, '_blank')
+                                const { engineHost, enginePort } = getConfig()
+                                window.open(
+                                  `${window.location.protocol}//${engineHost}:${enginePort}/${apiPath}`,
+                                  '_blank',
+                                )
                               }}
                               className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100"
                               title="Open in browser"
@@ -617,12 +624,17 @@ function HandlersPage() {
                           </div>
                           <div className="flex items-center gap-2">
                             <code className="flex-1 text-xs font-mono bg-black/40 text-cyan-400 px-3 py-2 rounded border border-cyan-500/20">
-                              {getHttpMethod(selectedFunction)} http://localhost:3111/{apiPath}
+                              {getHttpMethod(selectedFunction)} {window.location.protocol}{'//'}
+                              {getConfig().engineHost}:{getConfig().enginePort}/{apiPath}
                             </code>
                             <button
-                              onClick={() =>
-                                copyToClipboard(`http://localhost:3111/${apiPath}`, 'endpoint')
-                              }
+                              onClick={() => {
+                                const { engineHost, enginePort } = getConfig()
+                                copyToClipboard(
+                                  `${window.location.protocol}//${engineHost}:${enginePort}/${apiPath}`,
+                                  'endpoint',
+                                )
+                              }}
                               className="p-1.5 hover:bg-dark-gray rounded transition-colors"
                             >
                               {copied === 'endpoint' ? (

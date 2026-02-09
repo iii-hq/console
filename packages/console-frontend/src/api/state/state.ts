@@ -1,4 +1,4 @@
-import { DEVTOOLS_API } from '../config'
+import { getDevtoolsApi } from '../config'
 import { unwrapResponse } from '../utils'
 
 // ============================================================================
@@ -25,7 +25,7 @@ export interface StateGroup {
 export async function fetchStateItems(
   groupId: string,
 ): Promise<{ items: StateItem[]; count: number }> {
-  const res = await fetch(`${DEVTOOLS_API}/states/group`, {
+  const res = await fetch(`${getDevtoolsApi()}/states/group`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ group_id: groupId }),
@@ -49,7 +49,7 @@ export async function fetchStateGroups(): Promise<{
   groups: StateGroup[]
   count: number
 }> {
-  const res = await fetch(`${DEVTOOLS_API}/states/groups`, {
+  const res = await fetch(`${getDevtoolsApi()}/states/groups`, {
     method: 'GET',
     headers: { 'Content-Type': 'application/json' },
   })
@@ -59,7 +59,7 @@ export async function fetchStateGroups(): Promise<{
 }
 
 export async function setStateItem(groupId: string, key: string, value: unknown): Promise<void> {
-  const res = await fetch(`${DEVTOOLS_API}/states/${encodeURIComponent(groupId)}/item`, {
+  const res = await fetch(`${getDevtoolsApi()}/states/${encodeURIComponent(groupId)}/item`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ key, value }),
@@ -69,7 +69,7 @@ export async function setStateItem(groupId: string, key: string, value: unknown)
 
 export async function deleteStateItem(groupId: string, key: string): Promise<void> {
   const res = await fetch(
-    `${DEVTOOLS_API}/states/${encodeURIComponent(groupId)}/item/${encodeURIComponent(key)}`,
+    `${getDevtoolsApi()}/states/${encodeURIComponent(groupId)}/item/${encodeURIComponent(key)}`,
     {
       method: 'DELETE',
     },

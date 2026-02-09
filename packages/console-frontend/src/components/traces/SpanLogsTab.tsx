@@ -1,4 +1,5 @@
 import type { VisualizationSpan } from '@/lib/traceTransform'
+import { toMs } from '@/lib/traceTransform'
 
 interface SpanLogsTabProps {
   span: VisualizationSpan
@@ -34,7 +35,7 @@ export function SpanLogsTab({ span }: SpanLogsTabProps) {
             <div className="flex-1">
               <div className="text-sm font-semibold text-white mb-1">{event.name}</div>
               <div className="text-xs font-mono text-gray-400">
-                {formatTimestamp(event.timestamp)}
+                {formatTimestamp(toMs(event.timestamp))}
               </div>
             </div>
           </div>

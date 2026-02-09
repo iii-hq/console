@@ -1,4 +1,4 @@
-import { DEVTOOLS_API, WS_PORT } from '../config'
+import { getConfig, getDevtoolsApi } from '../config'
 import { unwrapResponse } from '../utils'
 
 // ============================================================================
@@ -23,9 +23,9 @@ export async function fetchStreams(): Promise<{
   count: number
   websocket_port: number
 }> {
-  console.log('[Streams API] Starting fetch from:', `${DEVTOOLS_API}/streams/list`)
+  console.log('[Streams API] Starting fetch from:', `${getDevtoolsApi()}/streams/list`)
   try {
-    const res = await fetch(`${DEVTOOLS_API}/streams/list`, {
+    const res = await fetch(`${getDevtoolsApi()}/streams/list`, {
       method: 'GET',
     })
 
@@ -45,7 +45,7 @@ export async function fetchStreams(): Promise<{
     return {
       streams: [],
       count: 0,
-      websocket_port: parseInt(WS_PORT, 10),
+      websocket_port: getConfig().wsPort,
     }
   }
 }
