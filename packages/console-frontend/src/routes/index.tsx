@@ -383,7 +383,7 @@ function DashboardPage() {
                                 <span className="truncate">
                                   /
                                   {(t.config as { api_path?: string })?.api_path ||
-                                    t.function_path?.replace(/^api\./, '').replace(/\./g, '/')}
+                                    t.function_id?.replace(/^api\./, '').replace(/\./g, '/')}
                                 </span>
                               </div>
                             ))}
@@ -473,10 +473,10 @@ function DashboardPage() {
                     <div className="space-y-1.5 md:space-y-2 max-h-[200px] md:max-h-[280px] overflow-y-auto custom-scrollbar pr-1">
                       {userFunctions.slice(0, 6).map((f) => (
                         <div
-                          key={f.function_path}
+                          key={f.function_id}
                           className="text-[10px] md:text-[11px] font-mono text-foreground/90 bg-black/30 px-2 md:px-3 py-1.5 md:py-2 rounded border border-border/20 truncate"
                         >
-                          {f.function_path}
+                          {f.function_id}
                         </div>
                       ))}
                       {userFunctions.length > 6 && (
@@ -674,7 +674,7 @@ function DashboardPage() {
                           {trigger.id.length > 16 ? `${trigger.id.slice(0, 16)}...` : trigger.id}
                         </td>
                         <td className="py-2 md:py-3 px-3 md:px-4 text-[#F4F4F4] font-mono text-[9px] md:text-[10px] max-w-[100px] md:max-w-none truncate">
-                          {trigger.function_path || '—'}
+                          {trigger.function_id || '—'}
                         </td>
                         <td className="py-2 md:py-3 px-3 md:px-4 text-[#F4F4F4]">
                           <Badge variant="success" className="text-[9px] md:text-[10px]">

@@ -1,14 +1,14 @@
 import { getDevtoolsApi } from '../config'
 
 export async function invokeFunction(
-  functionPath: string,
+  functionId: string,
   input?: unknown,
 ): Promise<{ success: boolean; data?: unknown; error?: string }> {
   try {
     const res = await fetch(`${getDevtoolsApi()}/invoke`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ function_path: functionPath, input: input || {} }),
+      body: JSON.stringify({ function_id: functionId, input: input || {} }),
     })
 
     if (res.ok) {
@@ -53,13 +53,13 @@ export async function emitEvent(
 
 export async function triggerCron(
   triggerId: string,
-  functionPath?: string,
+  functionId?: string,
 ): Promise<{ success: boolean; data?: unknown; error?: string }> {
   try {
     const res = await fetch(`${getDevtoolsApi()}/cron/trigger`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ trigger_id: triggerId, function_path: functionPath }),
+      body: JSON.stringify({ trigger_id: triggerId, function_id: functionId }),
     })
 
     if (res.ok) {

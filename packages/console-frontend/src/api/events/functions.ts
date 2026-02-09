@@ -6,7 +6,7 @@ import { unwrapResponse } from '../utils'
 // ============================================================================
 
 export interface FunctionInfo {
-  function_path: string
+  function_id: string
   description: string | null
   metadata: Record<string, unknown> | null
   request_format: unknown | null
@@ -17,7 +17,7 @@ export interface FunctionInfo {
 export interface TriggerInfo {
   id: string
   trigger_type: string
-  function_path: string
+  function_id: string
   config: Record<string, unknown>
   internal?: boolean
 }
