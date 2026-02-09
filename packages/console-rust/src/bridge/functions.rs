@@ -7,7 +7,7 @@ use crate::bridge::error::{error_response, success_response};
 
 async fn handle_health(bridge: &III) -> Value {
     match bridge
-        .invoke_function_with_timeout("engine.health.check", json!({}), Duration::from_secs(5))
+        .call_with_timeout("engine.health.check", json!({}), Duration::from_secs(5))
         .await
     {
         Ok(health_data) => success_response(health_data),
@@ -17,7 +17,7 @@ async fn handle_health(bridge: &III) -> Value {
 
 async fn handle_workers(bridge: &III) -> Value {
     match bridge
-        .invoke_function_with_timeout("engine.workers.list", json!({}), Duration::from_secs(5))
+        .call_with_timeout("engine.workers.list", json!({}), Duration::from_secs(5))
         .await
     {
         Ok(workers_data) => success_response(workers_data),
@@ -27,7 +27,7 @@ async fn handle_workers(bridge: &III) -> Value {
 
 async fn handle_triggers_list(bridge: &III) -> Value {
     match bridge
-        .invoke_function_with_timeout("engine.triggers.list", json!({}), Duration::from_secs(5))
+        .call_with_timeout("engine.triggers.list", json!({}), Duration::from_secs(5))
         .await
     {
         Ok(triggers_data) => success_response(triggers_data),
@@ -37,7 +37,7 @@ async fn handle_triggers_list(bridge: &III) -> Value {
 
 async fn handle_functions_list(bridge: &III) -> Value {
     match bridge
-        .invoke_function_with_timeout("engine.functions.list", json!({}), Duration::from_secs(5))
+        .call_with_timeout("engine.functions.list", json!({}), Duration::from_secs(5))
         .await
     {
         Ok(functions_data) => success_response(functions_data),
@@ -47,13 +47,13 @@ async fn handle_functions_list(bridge: &III) -> Value {
 
 async fn handle_status(bridge: &III) -> Value {
     let (workers_result, functions_result, metrics_result) = tokio::join!(
-        bridge.invoke_function_with_timeout("engine.workers.list", json!({}), Duration::from_secs(5)),
-        bridge.invoke_function_with_timeout(
+        bridge.call_with_timeout("engine.workers.list", json!({}), Duration::from_secs(5)),
+        bridge.call_with_timeout(
             "engine.functions.list",
             json!({}),
             Duration::from_secs(5)
         ),
-        bridge.invoke_function_with_timeout("engine.metrics.list", json!({}), Duration::from_secs(5))
+        bridge.call_with_timeout("engine.metrics.list", json!({}), Duration::from_secs(5))
     );
 
     let workers_count = workers_result
@@ -94,7 +94,7 @@ async fn handle_trigger_types(bridge: &III) -> Value {
     ];
 
     match bridge
-        .invoke_function_with_timeout("engine.triggers.list", json!({}), Duration::from_secs(5))
+        .call_with_timeout("engine.triggers.list", json!({}), Duration::from_secs(5))
         .await
     {
         Ok(triggers_data) => {
@@ -128,7 +128,7 @@ async fn handle_trigger_types(bridge: &III) -> Value {
 
 async fn handle_alerts_list(bridge: &III) -> Value {
     match bridge
-        .invoke_function_with_timeout("engine.alerts.list", json!({}), Duration::from_secs(5))
+        .call_with_timeout("engine.alerts.list", json!({}), Duration::from_secs(5))
         .await
     {
         Ok(data) => success_response(data),
@@ -138,7 +138,7 @@ async fn handle_alerts_list(bridge: &III) -> Value {
 
 async fn handle_sampling_rules(bridge: &III) -> Value {
     match bridge
-        .invoke_function_with_timeout("engine.sampling.rules", json!({}), Duration::from_secs(5))
+        .call_with_timeout("engine.sampling.rules", json!({}), Duration::from_secs(5))
         .await
     {
         Ok(data) => success_response(data),
@@ -149,7 +149,7 @@ async fn handle_sampling_rules(bridge: &III) -> Value {
 async fn handle_otel_logs_list(bridge: &III, input: Value) -> Value {
     let effective_input = input.get("body").cloned().unwrap_or(input);
     match bridge
-        .invoke_function_with_timeout("engine.logs.list", effective_input, Duration::from_secs(5))
+        .call_with_timeout("engine.logs.list", effective_input, Duration::from_secs(5))
         .await
     {
         Ok(data) => success_response(data),
@@ -159,7 +159,7 @@ async fn handle_otel_logs_list(bridge: &III, input: Value) -> Value {
 
 async fn handle_otel_logs_clear(bridge: &III) -> Value {
     match bridge
-        .invoke_function_with_timeout("engine.logs.clear", json!({}), Duration::from_secs(5))
+        .call_with_timeout("engine.logs.clear", json!({}), Duration::from_secs(5))
         .await
     {
         Ok(data) => success_response(data),
@@ -170,7 +170,7 @@ async fn handle_otel_logs_clear(bridge: &III) -> Value {
 async fn handle_otel_traces_list(bridge: &III, input: Value) -> Value {
     let effective_input = input.get("body").cloned().unwrap_or(input);
     match bridge
-        .invoke_function_with_timeout("engine.traces.list", effective_input, Duration::from_secs(5))
+        .call_with_timeout("engine.traces.list", effective_input, Duration::from_secs(5))
         .await
     {
         Ok(data) => success_response(data),
@@ -180,7 +180,7 @@ async fn handle_otel_traces_list(bridge: &III, input: Value) -> Value {
 
 async fn handle_otel_traces_clear(bridge: &III) -> Value {
     match bridge
-        .invoke_function_with_timeout("engine.traces.clear", json!({}), Duration::from_secs(5))
+        .call_with_timeout("engine.traces.clear", json!({}), Duration::from_secs(5))
         .await
     {
         Ok(data) => success_response(data),
@@ -209,7 +209,7 @@ async fn handle_otel_traces_tree(bridge: &III, input: Value) -> Value {
     let tree_input = json!({ "trace_id": trace_id });
 
     match bridge
-        .invoke_function_with_timeout("engine.traces.tree", tree_input, Duration::from_secs(10))
+        .call_with_timeout("engine.traces.tree", tree_input, Duration::from_secs(10))
         .await
     {
         Ok(data) => success_response(data),
@@ -220,7 +220,7 @@ async fn handle_otel_traces_tree(bridge: &III, input: Value) -> Value {
 async fn handle_metrics_detailed(bridge: &III, input: Value) -> Value {
     let effective_input = input.get("body").cloned().unwrap_or(input);
     match bridge
-        .invoke_function_with_timeout("engine.metrics.list", effective_input, Duration::from_secs(5))
+        .call_with_timeout("engine.metrics.list", effective_input, Duration::from_secs(5))
         .await
     {
         Ok(data) => success_response(data),
@@ -231,7 +231,7 @@ async fn handle_metrics_detailed(bridge: &III, input: Value) -> Value {
 async fn handle_rollups_list(bridge: &III, input: Value) -> Value {
     let effective_input = input.get("body").cloned().unwrap_or(input);
     match bridge
-        .invoke_function_with_timeout("engine.rollups.list", effective_input, Duration::from_secs(5))
+        .call_with_timeout("engine.rollups.list", effective_input, Duration::from_secs(5))
         .await
     {
         Ok(data) => success_response(data),
@@ -242,7 +242,7 @@ async fn handle_rollups_list(bridge: &III, input: Value) -> Value {
 async fn handle_state_groups_list(bridge: &III, _input: Value) -> Value {
     // Always use state.list_groups - no filtering by stream_name needed
     match bridge
-        .invoke_function_with_timeout("state.list_groups", json!({}), Duration::from_secs(5))
+        .call_with_timeout("state.list_groups", json!({}), Duration::from_secs(5))
         .await
     {
         Ok(data) => {
@@ -278,7 +278,7 @@ async fn handle_state_group_items(bridge: &III, input: Value) -> Value {
             let state_input = json!({ "group_id": group_id });
 
             match bridge
-                .invoke_function_with_timeout("state.list", state_input, Duration::from_secs(5))
+                .call_with_timeout("state.list", state_input, Duration::from_secs(5))
                 .await
             {
                 Ok(data) => {
@@ -360,7 +360,7 @@ async fn handle_state_item_set(bridge: &III, input: Value) -> Value {
     });
 
     match bridge
-        .invoke_function_with_timeout("state.set", state_input, Duration::from_secs(5))
+        .call_with_timeout("state.set", state_input, Duration::from_secs(5))
         .await
     {
         Ok(data) => success_response(data),
@@ -407,7 +407,7 @@ async fn handle_state_item_delete(bridge: &III, input: Value) -> Value {
     });
 
     match bridge
-        .invoke_function_with_timeout("state.delete", state_input, Duration::from_secs(5))
+        .call_with_timeout("state.delete", state_input, Duration::from_secs(5))
         .await
     {
         Ok(data) => success_response(data),
@@ -417,7 +417,7 @@ async fn handle_state_item_delete(bridge: &III, input: Value) -> Value {
 
 async fn handle_streams_list(bridge: &III) -> Value {
     match bridge
-        .invoke_function_with_timeout("streams.listAll", json!({}), Duration::from_secs(10))
+        .call_with_timeout("streams.listAll", json!({}), Duration::from_secs(10))
         .await
     {
         Ok(data) => {

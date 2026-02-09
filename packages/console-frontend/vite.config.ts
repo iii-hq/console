@@ -35,6 +35,9 @@ export default defineConfig(({ mode }) => ({
     },
   },
   server: {
-    port: 3113,
+    port: 3114,
+    proxy: {
+      '/api': 'http://localhost:3113',
+    },
   },
 }))

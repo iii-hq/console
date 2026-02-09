@@ -92,14 +92,14 @@ function HandlersPage() {
 
   const filteredFunctions = functions.filter((f) => {
     if (!showSystem && f.internal) return false
-    if (searchQuery && !f.function_path.toLowerCase().includes(searchQuery.toLowerCase()))
+    if (searchQuery && !f.function_id.toLowerCase().includes(searchQuery.toLowerCase()))
       return false
     return true
   })
 
   const groupedFunctions = filteredFunctions.reduce(
     (acc, fn) => {
-      const parts = fn.function_path.split('.')
+      const parts = fn.function_id.split('.')
       const group = parts.length > 1 ? parts[0].toUpperCase() : 'CORE'
       if (!acc[group]) acc[group] = []
       acc[group].push(fn)
@@ -117,7 +117,7 @@ function HandlersPage() {
   })
 
   const getAssociatedTrigger = (fn: FunctionInfo): TriggerInfo | undefined => {
-    return triggers.find((t) => t.function_path === fn.function_path)
+    return triggers.find((t) => t.function_id === fn.function_id)
   }
 
   const getApiPath = (fn: FunctionInfo): string | null => {
@@ -300,7 +300,7 @@ function HandlersPage() {
   }
 
   const handleSelectFunction = (fn: FunctionInfo) => {
-    if (selectedFunction?.function_path === fn.function_path) {
+    if (selectedFunction?.function_id === fn.function_id) {
       setSelectedFunction(null)
     } else {
       setSelectedFunction(fn)
@@ -474,11 +474,11 @@ function HandlersPage() {
                   {groupedFunctions[group].map((fn) => {
                     const trigger = getAssociatedTrigger(fn)
                     const apiPath = getApiPath(fn)
-                    const isSelected = selectedFunction?.function_path === fn.function_path
+                    const isSelected = selectedFunction?.function_id === fn.function_id
 
                     return (
                       <div
-                        key={fn.function_path}
+                        key={fn.function_id}
                         onClick={() => handleSelectFunction(fn)}
                         className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all
                           ${
@@ -495,7 +495,7 @@ function HandlersPage() {
                             <span
                               className={`font-mono text-sm font-medium ${isSelected ? 'text-primary' : 'text-yellow'}`}
                             >
-                              {fn.function_path}
+                              {fn.function_id}
                             </span>
                             {trigger && (
                               <Badge
@@ -584,7 +584,7 @@ function HandlersPage() {
               <div className="flex items-center gap-2 min-w-0">
                 {getFunctionIcon(selectedFunction)}
                 <h2 className="font-medium text-xs md:text-sm truncate">
-                  {selectedFunction.function_path}
+                  {selectedFunction.function_id}
                 </h2>
               </div>
               <Button
@@ -624,7 +624,8 @@ function HandlersPage() {
                           </div>
                           <div className="flex items-center gap-2">
                             <code className="flex-1 text-xs font-mono bg-black/40 text-cyan-400 px-3 py-2 rounded border border-cyan-500/20">
-                              {getHttpMethod(selectedFunction)} {window.location.protocol}{'//'}
+                              {getHttpMethod(selectedFunction)} {window.location.protocol}
+                              {'//'}
                               {getConfig().engineHost}:{getConfig().enginePort}/{apiPath}
                             </code>
                             <button
@@ -918,7 +919,7 @@ function HandlersPage() {
                                   setTriggerResult(null)
                                   const result = await triggerCron(
                                     trigger.id,
-                                    selectedFunction.function_path,
+                                    selectedFunction.function_id,
                                   )
                                   setTriggerResult({
                                     success: result.success,
@@ -1067,14 +1068,14 @@ function HandlersPage() {
 
                     <div>
                       <div className="text-[10px] text-muted uppercase tracking-wider mb-2">
-                        Function Path
+                        Function ID
                       </div>
                       <div className="flex items-center gap-2">
                         <code className="flex-1 text-xs font-mono bg-black/40 px-3 py-2 rounded">
-                          {selectedFunction.function_path}
+                          {selectedFunction.function_id}
                         </code>
                         <button
-                          onClick={() => copyToClipboard(selectedFunction.function_path, 'path')}
+                          onClick={() => copyToClipboard(selectedFunction.function_id, 'path')}
                           className="p-1.5 hover:bg-dark-gray rounded transition-colors"
                         >
                           {copied === 'path' ? (
