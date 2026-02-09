@@ -10,14 +10,16 @@ repository = "https://github.com/MotiaDev/iii-console"
 # Web framework
 axum = "0.8.8"
 tower-http = { version = "0.6.8", features = ["cors"] }
-iii-sdk = { path = "../../../iii-engine/packages/rust/iii" }# Async runtime
+iii-sdk = { path = "../../../sdk/packages/rust/iii", features = ["otel"] }
+
+# Async runtime
 tokio = { version = "1", features = ["full"] }
 
 # Static file embedding
 rust-embed = "8"
 
 # CLI argument parsing
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }

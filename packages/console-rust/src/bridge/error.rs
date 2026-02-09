@@ -1,17 +1,17 @@
-use iii_sdk::BridgeError;
+use iii_sdk::IIIError;
 use serde_json::{json, Value};
 
-/// Maps a BridgeError to an HTTP response format
-pub fn error_response(error: BridgeError) -> Value {
+/// Maps a IIIError to an HTTP response format
+pub fn error_response(error: IIIError) -> Value {
     let (status_code, message) = match error {
-        BridgeError::NotConnected => (503, "Bridge is not connected".to_string()),
-        BridgeError::Timeout => (504, "Invocation timed out".to_string()),
-        BridgeError::Remote { code, message } => {
+        IIIError::NotConnected => (503, "Bridge is not connected".to_string()),
+        IIIError::Timeout => (504, "Invocation timed out".to_string()),
+        IIIError::Remote { code, message } => {
             (502, format!("Remote error ({}): {}", code, message))
         }
-        BridgeError::Handler(msg) => (500, format!("Handler error: {}", msg)),
-        BridgeError::Serde(msg) => (500, format!("Serialization error: {}", msg)),
-        BridgeError::WebSocket(msg) => (503, format!("WebSocket error: {}", msg)),
+        IIIError::Handler(msg) => (500, format!("Handler error: {}", msg)),
+        IIIError::Serde(msg) => (500, format!("Serialization error: {}", msg)),
+        IIIError::WebSocket(msg) => (503, format!("WebSocket error: {}", msg)),
     };
 
     json!({
