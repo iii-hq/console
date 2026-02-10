@@ -36,9 +36,9 @@ export const Route = createFileRoute('/handlers')({
   component: HandlersPage,
   loader: ({ context: { queryClient } }) => {
     Promise.allSettled([
-      queryClient.prefetchQuery(functionsQuery),
+      queryClient.prefetchQuery(functionsQuery()),
       queryClient.prefetchQuery(workersQuery),
-      queryClient.prefetchQuery(triggersQuery),
+      queryClient.prefetchQuery(triggersQuery()),
     ])
   },
 })
@@ -72,9 +72,11 @@ function HandlersPage() {
     data: functionsData,
     isLoading: loadingFunctions,
     refetch: refetchFunctions,
-  } = useQuery(functionsQuery)
+  } = useQuery(functionsQuery({ include_internal: showSystem }))
   const { data: workersData, refetch: refetchWorkers } = useQuery(workersQuery)
-  const { data: triggersData, refetch: refetchTriggers } = useQuery(triggersQuery)
+  const { data: triggersData, refetch: refetchTriggers } = useQuery(
+    triggersQuery({ include_internal: showSystem }),
+  )
 
   const functions = functionsData?.functions || []
   const workers = workersData?.workers || []

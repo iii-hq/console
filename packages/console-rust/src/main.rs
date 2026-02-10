@@ -133,7 +133,7 @@ async fn main() -> Result<()> {
         result = server => result,
         _ = shutdown_signal() => {
             tracing::info!("Shutdown signal received, cleaning up...");
-            bridge.shutdown();
+            bridge.shutdown_async().await;
             Ok(())
         }
     }
