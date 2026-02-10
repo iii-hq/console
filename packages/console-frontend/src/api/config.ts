@@ -7,6 +7,7 @@ export interface ConsoleConfig {
   wsPort: number
   consolePort: number
   version: string
+  enableFlow?: boolean
 }
 
 let _config: ConsoleConfig | null = null

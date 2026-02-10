@@ -42,6 +42,10 @@ struct Args {
     /// OpenTelemetry service name (default: iii-console)
     #[arg(long, env = "OTEL_SERVICE_NAME", default_value = "iii-console")]
     otel_service_name: String,
+
+    /// Enable the experimental flow visualization page
+    #[arg(long, env = "III_ENABLE_FLOW")]
+    enable_flow: bool,
 }
 
 async fn shutdown_signal() {
@@ -124,6 +128,7 @@ async fn main() -> Result<()> {
         engine_host: args.engine_host,
         engine_port: args.engine_port,
         ws_port: args.ws_port,
+        enable_flow: args.enable_flow,
     };
 
     // Run server with graceful shutdown

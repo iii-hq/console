@@ -14,6 +14,7 @@ import { Route as StreamsRouteImport } from './routes/streams'
 import { Route as StatesRouteImport } from './routes/states'
 import { Route as LogsRouteImport } from './routes/logs'
 import { Route as HandlersRouteImport } from './routes/handlers'
+import { Route as FlowRouteImport } from './routes/flow'
 import { Route as ConfigRouteImport } from './routes/config'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -42,6 +43,11 @@ const HandlersRoute = HandlersRouteImport.update({
   path: '/handlers',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FlowRoute = FlowRouteImport.update({
+  id: '/flow',
+  path: '/flow',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ConfigRoute = ConfigRouteImport.update({
   id: '/config',
   path: '/config',
@@ -56,6 +62,7 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/config': typeof ConfigRoute
+  '/flow': typeof FlowRoute
   '/handlers': typeof HandlersRoute
   '/logs': typeof LogsRoute
   '/states': typeof StatesRoute
@@ -65,6 +72,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/config': typeof ConfigRoute
+  '/flow': typeof FlowRoute
   '/handlers': typeof HandlersRoute
   '/logs': typeof LogsRoute
   '/states': typeof StatesRoute
@@ -75,6 +83,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/config': typeof ConfigRoute
+  '/flow': typeof FlowRoute
   '/handlers': typeof HandlersRoute
   '/logs': typeof LogsRoute
   '/states': typeof StatesRoute
@@ -86,6 +95,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/config'
+    | '/flow'
     | '/handlers'
     | '/logs'
     | '/states'
@@ -95,6 +105,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/config'
+    | '/flow'
     | '/handlers'
     | '/logs'
     | '/states'
@@ -104,6 +115,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/config'
+    | '/flow'
     | '/handlers'
     | '/logs'
     | '/states'
@@ -114,6 +126,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ConfigRoute: typeof ConfigRoute
+  FlowRoute: typeof FlowRoute
   HandlersRoute: typeof HandlersRoute
   LogsRoute: typeof LogsRoute
   StatesRoute: typeof StatesRoute
@@ -158,6 +171,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HandlersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/flow': {
+      id: '/flow'
+      path: '/flow'
+      fullPath: '/flow'
+      preLoaderRoute: typeof FlowRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/config': {
       id: '/config'
       path: '/config'
@@ -178,6 +198,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ConfigRoute: ConfigRoute,
+  FlowRoute: FlowRoute,
   HandlersRoute: HandlersRoute,
   LogsRoute: LogsRoute,
   StatesRoute: StatesRoute,

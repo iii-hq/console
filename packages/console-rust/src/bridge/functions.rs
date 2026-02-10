@@ -477,6 +477,84 @@ async fn handle_streams_list(bridge: &III) -> Value {
     }
 }
 
+async fn handle_flow_config_get(bridge: &III, input: Value) -> Value {
+    // Get flow_id from path_params or query_params
+    let flow_id = input
+        .get("path_params")
+        .and_then(|p| p.get("flow_id"))
+        .and_then(|v| v.as_str())
+        .or_else(|| input.get("query_params").and_then(|p| p.get("flow_id")).and_then(|v| v.as_str()))
+        .or_else(|| input.get("flow_id").and_then(|v| v.as_str()));
+
+    let flow_id = match flow_id {
+        Some(id) => id.to_string(),
+        None => {
+            return error_response(iii_sdk::IIIError::Handler(
+                "Missing flow_id parameter".to_string(),
+            ))
+        }
+    };
+
+    // Try to get config from the engine's state
+    let state_input = json!({
+        "group_id": "__console.flowConfigs",
+        "item_id": flow_id
+    });
+
+    match bridge
+        .call_with_timeout("state.get", state_input, Duration::from_secs(5))
+        .await
+    {
+        Ok(data) => {
+            if data.is_null() {
+                success_response(json!({ "id": flow_id, "config": {} }))
+            } else {
+                success_response(data)
+            }
+        }
+        Err(_) => {
+            // Return empty config if state module doesn't have it
+            success_response(json!({ "id": flow_id, "config": {} }))
+        }
+    }
+}
+
+async fn handle_flow_config_save(bridge: &III, input: Value) -> Value {
+    let body = input.get("body").cloned().unwrap_or(input.clone());
+
+    let flow_id = input
+        .get("path_params")
+        .and_then(|p| p.get("flow_id"))
+        .and_then(|v| v.as_str())
+        .or_else(|| body.get("id").and_then(|v| v.as_str()));
+
+    let flow_id = match flow_id {
+        Some(id) => id.to_string(),
+        None => {
+            return error_response(iii_sdk::IIIError::Handler(
+                "Missing flow_id parameter".to_string(),
+            ))
+        }
+    };
+
+    let config = body.get("config").cloned().unwrap_or(json!({}));
+    let data = json!({ "id": flow_id, "config": config });
+
+    let state_input = json!({
+        "group_id": "__console.flowConfigs",
+        "item_id": flow_id,
+        "data": data
+    });
+
+    match bridge
+        .call_with_timeout("state.set", state_input, Duration::from_secs(5))
+        .await
+    {
+        Ok(_) => success_response(json!({ "message": "Flow config saved successfully" })),
+        Err(err) => error_response(err),
+    }
+}
+
 pub fn register_functions(bridge: &III) {
     let b = bridge.clone();
     bridge.register_function("engine.console.health", move |_input| {
@@ -596,5 +674,17 @@ pub fn register_functions(bridge: &III) {
     bridge.register_function("engine.console.streams_list", move |_input| {
         let bridge = b.clone();
         async move { Ok(handle_streams_list(&bridge).await) }
+    });
+
+    let b = bridge.clone();
+    bridge.register_function("engine.console.flow_config_get", move |input| {
+        let bridge = b.clone();
+        async move { Ok(handle_flow_config_get(&bridge, input).await) }
+    });
+
+    let b = bridge.clone();
+    bridge.register_function("engine.console.flow_config_save", move |input| {
+        let bridge = b.clone();
+        async move { Ok(handle_flow_config_save(&bridge, input).await) }
     });
 }

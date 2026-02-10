@@ -7,6 +7,7 @@ import {
   fetchTriggers,
   fetchTriggerTypes,
 } from './events/functions'
+import { fetchFlowConfig, fetchFlows } from './flows/flows'
 import { fetchLogs, fetchOtelLogs } from './observability/logs'
 import {
   fetchDetailedMetrics,
@@ -208,4 +209,20 @@ export const rollupsQuery = (options?: {
   queryOptions({
     queryKey: ['rollups', options],
     queryFn: () => fetchRollups(options),
+  })
+
+// Flows
+export const flowsQuery = () =>
+  queryOptions({
+    queryKey: ['flows'],
+    queryFn: fetchFlows,
+    refetchInterval: 10000,
+  })
+
+// Flow config
+export const flowConfigQuery = (flowId: string) =>
+  queryOptions({
+    queryKey: ['flow-config', flowId],
+    queryFn: () => fetchFlowConfig(flowId),
+    enabled: !!flowId,
   })

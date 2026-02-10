@@ -9,13 +9,14 @@ import {
   Server,
   Settings,
   Terminal,
+  Workflow,
   X,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { getConnectionInfo } from '../../api/config'
 import { useConfig } from '../../api/config-provider'
 
-const NAV_ITEMS = [
+const BASE_NAV_ITEMS = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'States', href: '/states', icon: Database },
   { name: 'Streams', href: '/streams', icon: Layers },
@@ -24,6 +25,8 @@ const NAV_ITEMS = [
   { name: 'Logs', href: '/logs', icon: Terminal },
   { name: 'Config', href: '/config', icon: Settings },
 ]
+
+const FLOW_NAV_ITEM = { name: 'Flow', href: '/flow', icon: Workflow }
 
 function IIILogo({ className = '' }: { className?: string }) {
   return (
@@ -46,6 +49,13 @@ export function Sidebar() {
   const config = useConfig()
   const [isOnline, setIsOnline] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+
+  const navItems = useMemo(() => {
+    if (config.enableFlow) {
+      return [BASE_NAV_ITEMS[0], FLOW_NAV_ITEM, ...BASE_NAV_ITEMS.slice(1)]
+    }
+    return BASE_NAV_ITEMS
+  }, [config.enableFlow])
 
   useEffect(() => {
     const checkStatus = async () => {
@@ -116,7 +126,7 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
-        {NAV_ITEMS.map((item) => {
+        {navItems.map((item) => {
           const isActive = pathname === item.href
           const Icon = item.icon
 
