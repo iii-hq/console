@@ -5,6 +5,7 @@ use std::process::Command;
 
 fn main() {
     // Only rebuild frontend if REBUILD_FRONTEND is set or in release mode
+    let skip_frontend = env::var("SKIP_FRONTEND_BUILD").is_ok();
     let rebuild_frontend = env::var("REBUILD_FRONTEND").is_ok()
         || env::var("PROFILE").map(|p| p == "release").unwrap_or(false);
 
@@ -20,7 +21,7 @@ fn main() {
     // Check if assets already exist
     let assets_exist = assets_dir.join("index.html").exists();
 
-    if rebuild_frontend || !assets_exist {
+    if !skip_frontend && (rebuild_frontend || !assets_exist) {
         println!("cargo:warning=Building frontend assets...");
 
         // Run vite build via pnpm from workspace root
@@ -73,6 +74,7 @@ fn main() {
     println!("cargo:rerun-if-changed=../console-frontend/index.html");
     println!("cargo:rerun-if-changed=../console-frontend/vite.config.ts");
     println!("cargo:rerun-if-env-changed=REBUILD_FRONTEND");
+    println!("cargo:rerun-if-env-changed=SKIP_FRONTEND_BUILD");
 }
 
 fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
