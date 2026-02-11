@@ -52,7 +52,7 @@ export function useFlowState(flow: FlowResponse, flowConfig: FlowConfigResponse)
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<NodeData>>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
 
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null)
+  const saveTimeoutRef = useRef<number | null>(null)
   const lastSyncKeyRef = useRef<string>('')
   const isUserDragRef = useRef(false)
 
@@ -83,18 +83,20 @@ export function useFlowState(flow: FlowResponse, flowConfig: FlowConfigResponse)
     })
   }, [flow.id, setNodes])
 
+  // Memoize config serialization -- only recomputes when flowConfig reference changes
+  const configStr = useMemo(() => JSON.stringify(flowConfig?.config ?? {}), [flowConfig])
+
   // Sync nodes/edges from flow data - only when data actually changes
   useEffect(() => {
     if (!flow) return
 
-    // Create a stable key from the data to detect real changes
-    const syncKey = `${flow.id}:${flow.steps.length}:${flow.edges.length}:${JSON.stringify(flowConfig?.config ?? {})}`
+    const syncKey = `${flow.id}:${flow.steps.length}:${flow.edges.length}:${configStr}`
     if (syncKey === lastSyncKeyRef.current) return
     lastSyncKeyRef.current = syncKey
 
     setNodes(buildNodes(flow, flowConfig))
     setEdges(buildEdges(flow))
-  }, [flow, flowConfig, setNodes, setEdges])
+  }, [flow, flowConfig, configStr, setNodes, setEdges])
 
   // Wrap onNodesChange to detect user-initiated drags
   const handleNodesChange: OnNodesChange<Node<NodeData>> = useCallback(
@@ -119,12 +121,15 @@ export function useFlowState(flow: FlowResponse, flowConfig: FlowConfigResponse)
     [onNodesChange, savePositions],
   )
 
-  // Cleanup timeout on unmount
+  // Cleanup timeout on unmount -- flush pending save
   useEffect(() => {
     return () => {
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+        savePositions()
+      }
     }
-  }, [])
+  }, [savePositions])
 
   return useMemo(
     () => ({

@@ -5,6 +5,18 @@ use std::time::Duration;
 
 use crate::bridge::error::{error_response, success_response};
 
+/// State group ID used to persist console flow configurations.
+const FLOW_CONFIG_GROUP: &str = "__console.flowConfigs";
+
+fn validate_flow_id(id: &str) -> Result<String, Value> {
+    if id.is_empty() || !id.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.') {
+        return Err(error_response(iii_sdk::IIIError::Handler(
+            format!("Invalid flow_id: {}", id),
+        )));
+    }
+    Ok(id.to_string())
+}
+
 /// Parse a boolean parameter from query_params, handling string "true"/"false" coercion.
 fn parse_bool_param(input: &Value, key: &str) -> bool {
     let params = input.get("query_params").unwrap_or(input);
@@ -495,9 +507,14 @@ async fn handle_flow_config_get(bridge: &III, input: Value) -> Value {
         }
     };
 
+    let flow_id = match validate_flow_id(&flow_id) {
+        Ok(id) => id,
+        Err(err) => return err,
+    };
+
     // Try to get config from the engine's state
     let state_input = json!({
-        "group_id": "__console.flowConfigs",
+        "group_id": FLOW_CONFIG_GROUP,
         "item_id": flow_id
     });
 
@@ -537,11 +554,16 @@ async fn handle_flow_config_save(bridge: &III, input: Value) -> Value {
         }
     };
 
+    let flow_id = match validate_flow_id(&flow_id) {
+        Ok(id) => id,
+        Err(err) => return err,
+    };
+
     let config = body.get("config").cloned().unwrap_or(json!({}));
     let data = json!({ "id": flow_id, "config": config });
 
     let state_input = json!({
-        "group_id": "__console.flowConfigs",
+        "group_id": FLOW_CONFIG_GROUP,
         "item_id": flow_id,
         "data": data
     });

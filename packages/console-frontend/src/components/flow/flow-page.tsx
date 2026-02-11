@@ -9,12 +9,52 @@ import {
   RefreshCw,
   Workflow,
 } from 'lucide-react'
-import { useCallback, useRef, useState } from 'react'
+import { Component, useCallback, useRef, useState } from 'react'
 import { flowConfigQuery, flowsQuery } from '../../api/queries'
 import { Badge, Button } from '../ui/card'
 import { Tooltip } from '../ui/tooltip'
 import { FlowSelector } from './flow-selector'
 import { FlowView, type FlowViewHandle } from './flow-view'
+
+class FlowErrorBoundary extends Component<
+  { children: React.ReactNode; onReset?: () => void },
+  { hasError: boolean }
+> {
+  state = { hasError: false }
+  static getDerivedStateFromError() {
+    return { hasError: true }
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full gap-4">
+          <div className="p-4 rounded-full bg-[#141414] border border-[#1D1D1D]">
+            <Workflow className="w-8 h-8 text-muted/30" />
+          </div>
+          <div className="text-center">
+            <h3 className="text-sm font-medium text-foreground mb-1">
+              Something went wrong rendering this flow
+            </h3>
+            <p className="text-xs text-muted max-w-xs mb-3">
+              An unexpected error occurred. Try refreshing the page.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                this.setState({ hasError: false })
+                this.props.onReset?.()
+              }}
+              className="text-xs text-[#F3F724] hover:underline"
+            >
+              Try again
+            </button>
+          </div>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 export function FlowPage() {
   const queryClient = useQueryClient()
@@ -143,9 +183,11 @@ export function FlowPage() {
             </div>
           </div>
         ) : (
-          <ReactFlowProvider key={activeFlowId}>
-            <FlowView ref={flowViewRef} flow={activeFlow} flowConfig={flowConfig} />
-          </ReactFlowProvider>
+          <FlowErrorBoundary onReset={handleRefresh}>
+            <ReactFlowProvider key={activeFlowId}>
+              <FlowView ref={flowViewRef} flow={activeFlow} flowConfig={flowConfig} />
+            </ReactFlowProvider>
+          </FlowErrorBoundary>
         )}
       </div>
     </div>

@@ -61,6 +61,7 @@ interface FunctionInfo {
 }
 
 function generateStepId(filePath: string): string {
+  if (!filePath) return 'unknown-step'
   // Deterministic ID from file path - use full path to avoid collisions
   return filePath
     .replace(/\.[^.]+$/, '') // Remove extension
@@ -110,8 +111,7 @@ function createStep(func: FunctionInfo): FlowStep {
     if (t.type === 'api')
       return { type: 'api' as const, path: t.path, method: t.method, bodySchema: t.bodySchema }
     if (t.type === 'cron') return { type: 'cron' as const, cronExpression: t.expression }
-    if (t.type === 'queue')
-      return { type: 'queue' as const, topic: (t as Record<string, unknown>).topic as string }
+    if (t.type === 'queue') return { type: 'queue' as const, topic: t.topic }
     if (t.type === 'state') return { type: 'state' as const }
     return { type: t.type as FlowStep['type'] }
   })
@@ -163,26 +163,42 @@ function createStep(func: FunctionInfo): FlowStep {
   }
 }
 
-function createEdges(sourceStep: FlowStep, allSteps: FlowStep[]): FlowEdge[] {
+function buildTopicMap(steps: FlowStep[]): Map<string, FlowStep[]> {
+  const map = new Map<string, FlowStep[]>()
+  for (const step of steps) {
+    for (const topic of step.subscribes ?? []) {
+      const list = map.get(topic) ?? []
+      list.push(step)
+      map.set(topic, list)
+    }
+    for (const topic of step.virtualSubscribes ?? []) {
+      const list = map.get(topic) ?? []
+      list.push(step)
+      map.set(topic, list)
+    }
+  }
+  return map
+}
+
+function createEdges(sourceStep: FlowStep, topicMap: Map<string, FlowStep[]>): FlowEdge[] {
   const edges: FlowEdge[] = []
 
   const addEdgesForEmits = (emits: Emit[], variant: 'event' | 'virtual') => {
     for (const emit of emits) {
       const { topic, label, conditional } = processEmit(emit)
-      for (const target of allSteps) {
-        if (target.subscribes?.includes(topic) || target.virtualSubscribes?.includes(topic)) {
-          edges.push({
-            id: `${sourceStep.id}-${target.id}`,
-            source: sourceStep.id,
-            target: target.id,
-            data: {
-              variant,
-              topic,
-              label,
-              labelVariant: conditional ? 'conditional' : 'default',
-            },
-          })
-        }
+      if (!topic) continue
+      for (const target of topicMap.get(topic) ?? []) {
+        edges.push({
+          id: `${sourceStep.id}-${target.id}`,
+          source: sourceStep.id,
+          target: target.id,
+          data: {
+            variant,
+            topic,
+            label,
+            labelVariant: conditional ? 'conditional' : 'default',
+          },
+        })
       }
     }
   }
@@ -201,50 +217,54 @@ interface NormalizedFunction {
   metadata?: FunctionMetadata
 }
 
-function transformFunctionsToFlows(functions: FunctionInfo[]): FlowResponse[] {
-  // Normalize function data from engine API format
-  const normalizedFunctions: NormalizedFunction[] = functions.map((func) => ({
+function normalizeFunction(func: FunctionInfo): NormalizedFunction {
+  return {
     name: func.name ?? func.function_id ?? 'unknown',
     functionPath: func.functionPath ?? '',
     metadata: func.metadata
       ? normalizeMetadata(func.metadata as Record<string, unknown>)
       : undefined,
-  }))
+  }
+}
 
-  const functionsByFlow = new Map<string, NormalizedFunction[]>()
-
-  for (const func of normalizedFunctions) {
+function groupByFlow(functions: NormalizedFunction[]): Map<string, NormalizedFunction[]> {
+  const map = new Map<string, NormalizedFunction[]>()
+  for (const func of functions) {
     const flows = (func.metadata?.flows as string[]) ?? ['default']
     for (const flowId of flows) {
-      const existing = functionsByFlow.get(flowId) ?? []
+      const existing = map.get(flowId) ?? []
       existing.push(func)
-      functionsByFlow.set(flowId, existing)
+      map.set(flowId, existing)
     }
   }
+  return map
+}
 
+function buildFlow(flowId: string, functions: NormalizedFunction[]): FlowResponse | null {
+  const valid = functions.filter((f) => f.metadata && typeof f.metadata.filePath === 'string')
+
+  const deduped = new Map<string, NormalizedFunction>()
+  for (const f of valid) {
+    const key = f.metadata!.filePath!
+    if (!deduped.has(key)) deduped.set(key, f)
+  }
+
+  const steps = [...deduped.values()].map((f) => createStep(f as FunctionInfo))
+  if (steps.length === 0) return null
+
+  const topicMap = buildTopicMap(steps)
+  const edges = steps.flatMap((step) => createEdges(step, topicMap))
+  return { id: flowId, name: flowId, steps, edges }
+}
+
+function transformFunctionsToFlows(functions: FunctionInfo[]): FlowResponse[] {
+  const normalized = functions.map(normalizeFunction)
+  const byFlow = groupByFlow(normalized)
   const result: FlowResponse[] = []
-
-  for (const [flowId, flowFunctions] of functionsByFlow) {
-    const validFunctions = flowFunctions.filter(
-      (f) => f.metadata && typeof f.metadata.filePath === 'string',
-    )
-
-    // Deduplicate by filePath (multiple trigger registrations share the same step)
-    const deduped = new Map<string, NormalizedFunction>()
-    for (const f of validFunctions) {
-      const key = f.metadata!.filePath!
-      if (!deduped.has(key)) {
-        deduped.set(key, f)
-      }
-    }
-
-    const steps = [...deduped.values()].map((f) => createStep(f as FunctionInfo))
-    if (steps.length === 0) continue
-
-    const edges = steps.flatMap((step) => createEdges(step, steps))
-    result.push({ id: flowId, name: flowId, steps, edges })
+  for (const [flowId, funcs] of byFlow) {
+    const flow = buildFlow(flowId, funcs)
+    if (flow) result.push(flow)
   }
-
   return result
 }
 
@@ -267,9 +287,10 @@ export async function fetchFlows(): Promise<FlowResponse[]> {
   // Fetch functions and triggers in parallel
   const [functionsData, triggersData] = await Promise.all([
     fetchWithFallback<FunctionsApiResponse>('/functions?include_internal=true'),
-    fetchWithFallback<TriggersApiResponse>('/triggers?include_internal=true').catch(() => ({
-      triggers: [],
-    })),
+    fetchWithFallback<TriggersApiResponse>('/triggers?include_internal=true').catch((e) => {
+      console.warn('Failed to fetch triggers, continuing without trigger data:', e)
+      return { triggers: [] as TriggersApiResponse['triggers'] }
+    }),
   ])
 
   const functions = functionsData.functions || []
@@ -307,7 +328,8 @@ export async function fetchFlowConfig(flowId: string): Promise<FlowConfigRespons
     return await fetchWithFallback<FlowConfigResponse>(
       `/flows/config/${encodeURIComponent(flowId)}`,
     )
-  } catch {
+  } catch (e) {
+    console.warn('Failed to fetch flow config for', flowId, ':', e)
     return { id: flowId, config: {} }
   }
 }
