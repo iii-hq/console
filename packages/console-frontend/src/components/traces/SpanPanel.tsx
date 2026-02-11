@@ -1,7 +1,7 @@
-import { X } from 'lucide-react'
-import { useEffect } from 'react'
+import { ArrowUp, Clock, Copy, Layers, X, Zap } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import type { VisualizationSpan } from '@/lib/traceTransform'
+import type { VisualizationSpan, WaterfallData } from '@/lib/traceTransform'
 import { SpanBaggageTab } from './SpanBaggageTab'
 import { SpanErrorsTab } from './SpanErrorsTab'
 import { SpanInfoTab } from './SpanInfoTab'
@@ -10,72 +10,230 @@ import { SpanTagsTab } from './SpanTagsTab'
 
 interface SpanPanelProps {
   span: VisualizationSpan | null
+  traceData: WaterfallData | null
   onClose: () => void
+  onNavigateToSpan: (span: VisualizationSpan) => void
 }
 
-export function SpanPanel({ span, onClose }: SpanPanelProps) {
+function formatDuration(ms: number): string {
+  if (ms < 0.001) return '0μs'
+  if (ms < 1) return `${(ms * 1000).toFixed(0)}μs`
+  if (ms < 1000) return `${ms.toFixed(2)}ms`
+  return `${(ms / 1000).toFixed(2)}s`
+}
+
+export function SpanPanel({ span, traceData, onClose, onNavigateToSpan }: SpanPanelProps) {
+  const [copiedField, setCopiedField] = useState<string | null>(null)
+
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose()
-      }
+      if (e.key === 'Escape') onClose()
     }
-
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
   }, [onClose])
+
+  const traceContext = useMemo(() => {
+    if (!span || !traceData) return null
+    const parentSpan = traceData.spans.find((s) => s.span_id === span.parent_span_id)
+    const childSpans = traceData.spans.filter((s) => s.parent_span_id === span.span_id)
+    const childDuration = childSpans.reduce((sum, child) => sum + child.duration_ms, 0)
+    const selfTime = Math.max(0, span.duration_ms - childDuration)
+    return { parentSpan, childSpans, selfTime, childDuration }
+  }, [span, traceData])
 
   if (!span) return null
 
   const hasError = span.status === 'error'
   const attrCount = Object.keys(span.attributes || {}).length
   const eventCount = span.events?.length || 0
+  const service = span.service_name || span.name.split('.')[0]
+
+  const copyToClipboard = (text: string, field: string) => {
+    navigator.clipboard.writeText(text)
+    setCopiedField(field)
+    setTimeout(() => setCopiedField(null), 1500)
+  }
+
+  const statusConfig = {
+    ok: {
+      color: '#22C55E',
+      bg: 'rgba(34,197,94,0.08)',
+      border: 'rgba(34,197,94,0.15)',
+      label: 'OK',
+    },
+    error: {
+      color: '#EF4444',
+      bg: 'rgba(239,68,68,0.08)',
+      border: 'rgba(239,68,68,0.15)',
+      label: 'ERROR',
+    },
+    unset: {
+      color: '#6B7280',
+      bg: 'rgba(107,114,128,0.08)',
+      border: 'rgba(107,114,128,0.15)',
+      label: 'UNSET',
+    },
+  }[span.status]
 
   return (
-    <div className="fixed inset-y-0 right-0 w-full sm:w-[600px] bg-[#0A0A0A] border-l border-[#1D1D1D] shadow-2xl z-50 overflow-hidden flex flex-col animate-slide-in">
-      <div className="flex items-center justify-between px-6 py-4 border-b border-[#1D1D1D]">
-        <div className="flex-1 min-w-0">
-          <h2 className="text-lg font-semibold text-white truncate">{span.name}</h2>
-          <p className="text-sm text-gray-400 truncate">Span ID: {span.span_id.slice(0, 16)}...</p>
+    <div className="h-full bg-[#0A0A0A] overflow-hidden flex flex-col animate-span-panel-in">
+      {/* Compact header */}
+      <div className="flex-shrink-0 border-b border-[#1D1D1D]">
+        {/* Row 1: service badge + span name + close */}
+        <div className="flex items-center gap-2 px-4 pt-3 pb-1.5">
+          <div
+            className="px-1.5 py-0.5 rounded text-[10px] font-medium tracking-wide flex-shrink-0"
+            style={{
+              backgroundColor: statusConfig.bg,
+              color: statusConfig.color,
+              border: `1px solid ${statusConfig.border}`,
+            }}
+          >
+            {service}
+          </div>
+          <h2
+            className="text-sm font-semibold text-[#F4F4F4] leading-tight truncate flex-1 min-w-0"
+            title={span.name}
+          >
+            {span.name}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1 hover:bg-[#1D1D1D] rounded-md transition-colors group flex-shrink-0"
+            aria-label="Close panel (Esc)"
+            title="Close (Esc)"
+          >
+            <X className="w-3.5 h-3.5 text-gray-500 group-hover:text-gray-300" />
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="ml-4 p-2 hover:bg-[#141414] rounded transition-colors"
-          aria-label="Close panel"
-        >
-          <X className="w-5 h-5 text-gray-400" />
-        </button>
+
+        {/* Row 2: span ID + quick stats */}
+        <div className="flex items-center gap-2 px-4 pb-2.5 flex-wrap">
+          <button
+            type="button"
+            onClick={() => copyToClipboard(span.span_id, 'spanId')}
+            className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-gray-300 transition-colors font-mono group"
+          >
+            <span>{span.span_id.slice(0, 12)}</span>
+            {copiedField === 'spanId' ? (
+              <span className="text-[#22C55E] text-[9px]">copied</span>
+            ) : (
+              <Copy className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+            )}
+          </button>
+
+          <div className="w-px h-3 bg-[#1D1D1D]" />
+
+          <div className="flex items-center gap-1 px-2 py-0.5 bg-[#141414] border border-[#1D1D1D] rounded">
+            <Clock className="w-2.5 h-2.5 text-[#F3F724]" />
+            <span className="text-[11px] font-mono font-semibold text-[#F3F724]">
+              {formatDuration(span.duration_ms)}
+            </span>
+          </div>
+
+          {traceContext && traceContext.childSpans.length > 0 && (
+            <div className="flex items-center gap-1 px-2 py-0.5 bg-[#141414] border border-[#1D1D1D] rounded">
+              <Zap className="w-2.5 h-2.5 text-gray-400" />
+              <span className="text-[10px] font-mono text-gray-400">
+                self {formatDuration(traceContext.selfTime)}
+              </span>
+            </div>
+          )}
+
+          <div
+            className="flex items-center gap-1 px-2 py-0.5 rounded"
+            style={{
+              backgroundColor: statusConfig.bg,
+              border: `1px solid ${statusConfig.border}`,
+            }}
+          >
+            <div
+              className="w-1.5 h-1.5 rounded-full"
+              style={{ backgroundColor: statusConfig.color }}
+            />
+            <span
+              className="text-[10px] font-mono font-medium"
+              style={{ color: statusConfig.color }}
+            >
+              {statusConfig.label}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1 px-2 py-0.5 bg-[#141414] border border-[#1D1D1D] rounded">
+            <Layers className="w-2.5 h-2.5 text-gray-400" />
+            <span className="text-[10px] font-mono text-gray-400">d:{span.depth}</span>
+          </div>
+
+          {traceContext && traceContext.childSpans.length > 0 && (
+            <div className="flex items-center gap-1 px-2 py-0.5 bg-[#141414] border border-[#1D1D1D] rounded">
+              <span className="text-[10px] font-mono text-gray-400">
+                {traceContext.childSpans.length} child
+                {traceContext.childSpans.length !== 1 ? 'ren' : ''}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Parent span navigation (compact) */}
+        {traceContext?.parentSpan && (
+          <div className="px-4 pb-2.5">
+            <button
+              type="button"
+              onClick={() => onNavigateToSpan(traceContext.parentSpan!)}
+              className="flex items-center gap-1.5 w-full px-2.5 py-1.5 bg-[#141414] border border-[#1D1D1D] rounded hover:bg-[#1A1A1A] hover:border-[#252525] transition-colors group text-left"
+            >
+              <ArrowUp className="w-3 h-3 text-gray-500 group-hover:text-[#F3F724] transition-colors flex-shrink-0" />
+              <span className="text-[10px] text-gray-500 flex-shrink-0">parent</span>
+              <span className="text-[10px] text-gray-300 truncate group-hover:text-[#F4F4F4] transition-colors">
+                {traceContext.parentSpan.name}
+              </span>
+              <span className="text-[9px] font-mono text-gray-600 ml-auto flex-shrink-0">
+                {formatDuration(traceContext.parentSpan.duration_ms)}
+              </span>
+            </button>
+          </div>
+        )}
       </div>
 
-      <div className="flex-1 overflow-hidden">
+      {/* Tabbed content */}
+      <div className="flex-1 overflow-hidden min-h-0">
         <Tabs defaultValue="info" className="h-full flex flex-col">
-          <TabsList className="px-6 pt-4">
-            <TabsTrigger value="info">Info</TabsTrigger>
-            <TabsTrigger value="tags">
-              Tags
+          <TabsList className="px-4 pt-2 pb-0 bg-transparent">
+            <TabsTrigger value="info" className="text-[11px]">
+              Info
+            </TabsTrigger>
+            <TabsTrigger value="tags" className="text-[11px]">
+              Attributes
               {attrCount > 0 && (
-                <span className="ml-2 px-1.5 py-0.5 text-xs bg-[#1D1D1D] rounded">{attrCount}</span>
+                <span className="ml-1 px-1 py-0.5 text-[9px] bg-[#1D1D1D] rounded font-mono">
+                  {attrCount}
+                </span>
               )}
             </TabsTrigger>
-            <TabsTrigger value="logs">
-              Logs
+            <TabsTrigger value="logs" className="text-[11px]">
+              Events
               {eventCount > 0 && (
-                <span className="ml-2 px-1.5 py-0.5 text-xs bg-[#1D1D1D] rounded">
+                <span className="ml-1 px-1 py-0.5 text-[9px] bg-[#1D1D1D] rounded font-mono">
                   {eventCount}
                 </span>
               )}
             </TabsTrigger>
-            <TabsTrigger value="errors">
+            <TabsTrigger value="errors" className="text-[11px]">
               Errors
-              {hasError && <span className="ml-2 w-2 h-2 bg-red-500 rounded-full" />}
+              {hasError && (
+                <span className="ml-1 w-1.5 h-1.5 bg-red-500 rounded-full inline-block" />
+              )}
             </TabsTrigger>
-            <TabsTrigger value="baggage">Baggage</TabsTrigger>
+            <TabsTrigger value="baggage" className="text-[11px]">
+              Context
+            </TabsTrigger>
           </TabsList>
 
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto min-h-0">
             <TabsContent value="info" className="mt-0">
-              <SpanInfoTab span={span} />
+              <SpanInfoTab span={span} traceData={traceData} />
             </TabsContent>
             <TabsContent value="tags" className="mt-0">
               <SpanTagsTab span={span} />

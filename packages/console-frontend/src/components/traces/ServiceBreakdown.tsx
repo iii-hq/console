@@ -1,4 +1,5 @@
-import { useMemo } from 'react'
+import { ChevronRight } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { getServiceColor } from '@/lib/traceColors'
 import type { WaterfallData } from '@/lib/traceTransform'
 
@@ -29,6 +30,8 @@ function formatDuration(ms: number): string {
 }
 
 export function ServiceBreakdown({ data }: ServiceBreakdownProps) {
+  const [isExpanded, setIsExpanded] = useState(true)
+
   const { serviceStats, percentiles } = useMemo(() => {
     const statsMap = new Map<string, ServiceStats>()
     const durations: number[] = []
@@ -36,7 +39,6 @@ export function ServiceBreakdown({ data }: ServiceBreakdownProps) {
     for (const span of data.spans) {
       const serviceName = span.service_name || span.name.split('.')[0]
 
-      // Only include valid duration values
       if (Number.isFinite(span.duration_ms)) {
         durations.push(span.duration_ms)
       }
@@ -77,122 +79,75 @@ export function ServiceBreakdown({ data }: ServiceBreakdownProps) {
     return { serviceStats, percentiles }
   }, [data])
 
-  const pieChartData = useMemo(() => {
-    let currentAngle = 0
-    return serviceStats.map((service) => {
-      const angle = (service.percentage / 100) * 360
-      const startAngle = currentAngle
-      const endAngle = currentAngle + angle
-      currentAngle = endAngle
-
-      const startRad = (startAngle - 90) * (Math.PI / 180)
-      const endRad = (endAngle - 90) * (Math.PI / 180)
-
-      const x1 = 50 + 40 * Math.cos(startRad)
-      const y1 = 50 + 40 * Math.sin(startRad)
-      const x2 = 50 + 40 * Math.cos(endRad)
-      const y2 = 50 + 40 * Math.sin(endRad)
-
-      const largeArc = angle > 180 ? 1 : 0
-
-      return {
-        service,
-        path: `M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArc} 1 ${x2} ${y2} Z`,
-      }
-    })
-  }, [serviceStats])
-
   return (
-    <div className="bg-[#141414] rounded-lg p-6 space-y-6">
-      <h3 className="text-lg font-semibold text-white">Service Breakdown</h3>
+    <div className="bg-[#0A0A0A]">
+      {/* Collapsible header */}
+      <button
+        type="button"
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-[#141414] transition-colors text-left"
+      >
+        <ChevronRight
+          className={`w-3 h-3 text-gray-500 transition-transform duration-150 ${isExpanded ? 'rotate-90' : ''}`}
+        />
+        <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+          Services
+        </span>
 
-      <div className="grid grid-cols-4 gap-4">
-        <div className="bg-[#0A0A0A] rounded-lg p-4">
-          <div className="text-xs text-gray-400 mb-1">p50</div>
-          <div className="text-lg font-mono font-bold text-white">
-            {formatDuration(percentiles.p50)}
-          </div>
+        {/* Inline percentile summary — always visible */}
+        <div className="flex items-center gap-3 ml-auto text-[10px] font-mono text-gray-500">
+          <span>
+            p50 <span className="text-gray-300">{formatDuration(percentiles.p50)}</span>
+          </span>
+          <span>
+            p95 <span className="text-gray-300">{formatDuration(percentiles.p95)}</span>
+          </span>
+          <span>
+            p99 <span className="text-gray-300">{formatDuration(percentiles.p99)}</span>
+          </span>
         </div>
-        <div className="bg-[#0A0A0A] rounded-lg p-4">
-          <div className="text-xs text-gray-400 mb-1">p95</div>
-          <div className="text-lg font-mono font-bold text-white">
-            {formatDuration(percentiles.p95)}
-          </div>
-        </div>
-        <div className="bg-[#0A0A0A] rounded-lg p-4">
-          <div className="text-xs text-gray-400 mb-1">p99</div>
-          <div className="text-lg font-mono font-bold text-white">
-            {formatDuration(percentiles.p99)}
-          </div>
-        </div>
-        <div className="bg-[#0A0A0A] rounded-lg p-4">
-          <div className="text-xs text-gray-400 mb-1">max</div>
-          <div className="text-lg font-mono font-bold text-white">
-            {formatDuration(percentiles.max)}
-          </div>
-        </div>
-      </div>
+      </button>
 
-      <div className="grid grid-cols-2 gap-6">
-        <div>
-          <svg viewBox="0 0 100 100" className="w-full max-w-[200px] mx-auto">
-            {pieChartData.map(({ service, path }) => (
-              <path
-                key={service.name}
-                d={path}
-                fill={service.color}
-                stroke="#0A0A0A"
-                strokeWidth="0.5"
-              />
-            ))}
-          </svg>
-        </div>
-
-        <div className="space-y-2">
+      {isExpanded && (
+        <div className="px-4 pb-3 space-y-2.5">
+          {/* Service rows — each with name, bar, stats */}
           {serviceStats.map((service) => (
-            <div key={service.name} className="flex items-center justify-between text-sm">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: service.color }} />
-                <span className="text-white">{service.name}</span>
+            <div key={service.name} className="group">
+              <div className="flex items-center gap-2 mb-1">
+                <div
+                  className="w-2 h-2 rounded-sm flex-shrink-0"
+                  style={{ backgroundColor: service.color }}
+                />
+                <span className="text-[11px] text-[#F4F4F4] truncate flex-1 font-medium">
+                  {service.name}
+                </span>
+                <span className="text-[10px] font-mono text-gray-500">
+                  {service.spanCount} span{service.spanCount !== 1 ? 's' : ''}
+                </span>
+                <span className="text-[10px] font-mono text-gray-300 w-16 text-right">
+                  {formatDuration(service.totalDuration)}
+                </span>
+                {service.errorCount > 0 && (
+                  <span className="text-[10px] font-mono text-[#EF4444] font-semibold">
+                    {service.errorCount} err
+                  </span>
+                )}
               </div>
-              <span className="text-gray-400">{service.percentage.toFixed(1)}%</span>
+              {/* Proportional bar */}
+              <div className="h-1 rounded-full bg-[#141414] overflow-hidden ml-4">
+                <div
+                  className="h-full rounded-full transition-all duration-300"
+                  style={{
+                    width: `${Math.max(2, service.percentage)}%`,
+                    backgroundColor: service.color,
+                    opacity: 0.7,
+                  }}
+                />
+              </div>
             </div>
           ))}
         </div>
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-[#1D1D1D]">
-              <th className="text-left py-2 text-gray-400 font-medium">Service</th>
-              <th className="text-right py-2 text-gray-400 font-medium">Spans</th>
-              <th className="text-right py-2 text-gray-400 font-medium">Duration</th>
-              <th className="text-right py-2 text-gray-400 font-medium">Errors</th>
-            </tr>
-          </thead>
-          <tbody>
-            {serviceStats.map((service) => (
-              <tr key={service.name} className="border-b border-[#1D1D1D] last:border-0">
-                <td className="py-2 text-white">{service.name}</td>
-                <td className="py-2 text-right text-gray-300">{service.spanCount}</td>
-                <td className="py-2 text-right text-gray-300 font-mono">
-                  {formatDuration(service.totalDuration)}
-                </td>
-                <td className="py-2 text-right">
-                  <span
-                    className={
-                      service.errorCount > 0 ? 'text-red-500 font-semibold' : 'text-gray-300'
-                    }
-                  >
-                    {service.errorCount}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      )}
     </div>
   )
 }

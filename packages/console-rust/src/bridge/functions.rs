@@ -443,7 +443,7 @@ async fn handle_state_item_delete(bridge: &III, input: Value) -> Value {
 
 async fn handle_streams_list(bridge: &III) -> Value {
     match bridge
-        .call_with_timeout("streams.listAll", json!({}), Duration::from_secs(10))
+        .call_with_timeout("stream.listAll", json!({}), Duration::from_secs(10))
         .await
     {
         Ok(data) => {
