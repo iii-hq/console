@@ -1,6 +1,6 @@
 import { Copy } from 'lucide-react'
 import type { VisualizationSpan, WaterfallData } from '@/lib/traceTransform'
-import { formatDuration, useCopyToClipboard } from '@/lib/traceUtils'
+import { formatDuration, getServiceName, useCopyToClipboard } from '@/lib/traceUtils'
 
 interface SpanInfoTabProps {
   span: VisualizationSpan
@@ -10,7 +10,7 @@ interface SpanInfoTabProps {
 export function SpanInfoTab({ span, traceData }: SpanInfoTabProps) {
   const { copiedKey: copiedField, copy: copyToClipboard } = useCopyToClipboard()
 
-  const service = span.service_name || span.name.split('.')[0]
+  const service = getServiceName(span)
   const tracePercent = traceData ? (span.duration_ms / traceData.total_duration_ms) * 100 : 0
 
   return (

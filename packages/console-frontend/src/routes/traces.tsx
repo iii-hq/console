@@ -41,9 +41,7 @@ export const Route = createFileRoute('/traces')({
 
 interface TraceGroup {
   traceId: string
-  trace_id: string
   rootOperation: string
-  root_operation: string
   status: 'ok' | 'error' | 'pending'
   startTime: number
   endTime?: number
@@ -79,7 +77,7 @@ function TracesPage() {
   const [showSystem, setShowSystem] = useState(false)
   const [traceGroups, setTraceGroups] = useState<TraceGroup[]>([])
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null)
-  const [isConnected] = useState(true)
+  const isConnected = true
   const [hasOtelConfigured, setHasOtelConfigured] = useState(false)
 
   const [activeView, setActiveView] = useState<ViewType>('waterfall')
@@ -120,9 +118,7 @@ function TracesPage() {
 
           return {
             traceId: span.trace_id,
-            trace_id: span.trace_id,
             rootOperation: span.name,
-            root_operation: span.name,
             status: span.status.toLowerCase() === 'error' ? 'error' : 'ok',
             startTime,
             endTime,

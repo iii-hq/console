@@ -2,7 +2,7 @@ import { ChevronRight } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { getServiceColor } from '@/lib/traceColors'
 import type { WaterfallData } from '@/lib/traceTransform'
-import { formatDuration } from '@/lib/traceUtils'
+import { formatDuration, getServiceName } from '@/lib/traceUtils'
 
 interface ServiceBreakdownProps {
   data: WaterfallData
@@ -32,7 +32,7 @@ export function ServiceBreakdown({ data }: ServiceBreakdownProps) {
     const durations: number[] = []
 
     for (const span of data.spans) {
-      const serviceName = span.service_name || span.name.split('.')[0]
+      const serviceName = getServiceName(span)
 
       if (Number.isFinite(span.duration_ms)) {
         durations.push(span.duration_ms)
@@ -49,10 +49,12 @@ export function ServiceBreakdown({ data }: ServiceBreakdownProps) {
         })
       }
 
-      const stats = statsMap.get(serviceName)!
-      stats.spanCount++
-      stats.totalDuration += Number.isFinite(span.duration_ms) ? span.duration_ms : 0
-      if (span.status === 'error') stats.errorCount++
+      const stats = statsMap.get(serviceName)
+      if (stats) {
+        stats.spanCount++
+        stats.totalDuration += Number.isFinite(span.duration_ms) ? span.duration_ms : 0
+        if (span.status === 'error') stats.errorCount++
+      }
     }
 
     const totalDuration = data.total_duration_ms

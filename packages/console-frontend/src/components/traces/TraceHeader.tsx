@@ -2,7 +2,7 @@ import { AlertCircle, Clock, Copy, Layers, X } from 'lucide-react'
 import { useMemo } from 'react'
 import { getServiceColor } from '@/lib/traceColors'
 import type { WaterfallData } from '@/lib/traceTransform'
-import { formatDuration, useCopyToClipboard } from '@/lib/traceUtils'
+import { formatDuration, getServiceName, useCopyToClipboard } from '@/lib/traceUtils'
 
 interface TraceHeaderProps {
   data: WaterfallData
@@ -22,7 +22,7 @@ export function TraceHeader({ data, traceId, onClose }: TraceHeaderProps) {
 
     for (const span of data.spans) {
       if (span.status === 'error') errorCount++
-      const svc = span.service_name || span.name.split('.')[0]
+      const svc = getServiceName(span)
       if (span.service_name) services.add(span.service_name)
       durationMap.set(svc, (durationMap.get(svc) || 0) + span.duration_ms)
     }
@@ -33,7 +33,7 @@ export function TraceHeader({ data, traceId, onClose }: TraceHeaderProps) {
 
   const hasErrors = errorCount > 0
   const serviceCount = Math.max(serviceList.length, 1)
-  const rootService = rootSpan?.service_name || rootSpan?.name.split('.')[0] || 'trace'
+  const rootService = rootSpan ? getServiceName(rootSpan) : 'trace'
 
   const copyTraceId = () => {
     copy('traceId', traceId)

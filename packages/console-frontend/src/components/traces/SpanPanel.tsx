@@ -2,7 +2,7 @@ import { ArrowUp, Clock, Copy, Layers, X, Zap } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { VisualizationSpan, WaterfallData } from '@/lib/traceTransform'
-import { formatDuration, useCopyToClipboard } from '@/lib/traceUtils'
+import { formatDuration, getServiceName, STATUS_CONFIG, useCopyToClipboard } from '@/lib/traceUtils'
 import { SpanBaggageTab } from './SpanBaggageTab'
 import { SpanErrorsTab } from './SpanErrorsTab'
 import { SpanInfoTab } from './SpanInfoTab'
@@ -42,36 +42,11 @@ export function SpanPanel({ span, traceData, onClose, onNavigateToSpan }: SpanPa
   const hasError = span.status === 'error'
   const attrCount = Object.keys(span.attributes || {}).length
   const eventCount = span.events?.length || 0
-  const service = span.service_name || span.name.split('.')[0]
-
-  const statusConfig = {
-    ok: {
-      color: '#22C55E',
-      bg: 'rgba(34,197,94,0.08)',
-      border: 'rgba(34,197,94,0.15)',
-      label: 'OK',
-    },
-    error: {
-      color: '#EF4444',
-      bg: 'rgba(239,68,68,0.08)',
-      border: 'rgba(239,68,68,0.15)',
-      label: 'ERROR',
-    },
-    unset: {
-      color: '#6B7280',
-      bg: 'rgba(107,114,128,0.08)',
-      border: 'rgba(107,114,128,0.15)',
-      label: 'UNSET',
-    },
-  }[span.status] ?? {
-    color: '#6B7280',
-    bg: 'rgba(107,114,128,0.08)',
-    border: 'rgba(107,114,128,0.15)',
-    label: 'UNKNOWN',
-  }
+  const service = getServiceName(span)
+  const statusConfig = STATUS_CONFIG[span.status] ?? STATUS_CONFIG.default
 
   return (
-    <div className="h-full bg-[#0A0A0A] overflow-hidden flex flex-col animate-span-panel-in">
+    <div className="h-full bg-[#0A0A0A] overflow-hidden flex flex-col animate-panel-in">
       {/* Compact header */}
       <div className="flex-shrink-0 border-b border-[#1D1D1D]">
         {/* Row 1: service badge + span name + close */}

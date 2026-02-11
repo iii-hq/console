@@ -1,4 +1,5 @@
 import { Copy, Package } from 'lucide-react'
+import { useMemo } from 'react'
 import type { VisualizationSpan } from '@/lib/traceTransform'
 import { useCopyToClipboard } from '@/lib/traceUtils'
 
@@ -9,9 +10,13 @@ interface SpanBaggageTabProps {
 export function SpanBaggageTab({ span }: SpanBaggageTabProps) {
   const { copiedKey, copy } = useCopyToClipboard()
 
-  const baggageEntries = Object.entries(span.attributes || {})
-    .filter(([key]) => key.startsWith('baggage.'))
-    .map(([key, value]) => [key.replace('baggage.', ''), value] as [string, unknown])
+  const baggageEntries = useMemo(
+    () =>
+      Object.entries(span.attributes || {})
+        .filter(([key]) => key.startsWith('baggage.'))
+        .map(([key, value]) => [key.replace('baggage.', ''), value] as [string, unknown]),
+    [span.attributes],
+  )
 
   if (baggageEntries.length === 0) {
     return (

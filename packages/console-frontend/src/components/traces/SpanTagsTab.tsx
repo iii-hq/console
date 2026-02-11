@@ -41,7 +41,7 @@ export function SpanTagsTab({ span }: SpanTagsTabProps) {
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
 
   const attributes = span.attributes || {}
-  const entries = Object.entries(attributes)
+  const entries = useMemo(() => Object.entries(attributes), [attributes])
 
   const filteredEntries = useMemo(() => {
     return entries.filter(([key, value]) => {
@@ -61,7 +61,7 @@ export function SpanTagsTab({ span }: SpanTagsTabProps) {
       if (!grouped.has(namespace)) {
         grouped.set(namespace, [])
       }
-      grouped.get(namespace)!.push([key, value])
+      grouped.get(namespace)?.push([key, value])
     }
 
     const result: AttributeGroup[] = []
@@ -75,7 +75,7 @@ export function SpanTagsTab({ span }: SpanTagsTabProps) {
       result.push({
         namespace: ns,
         label: ns === '_other' ? 'Other' : NAMESPACE_LABELS[ns] || ns,
-        entries: grouped.get(ns)!,
+        entries: grouped.get(ns) ?? [],
       })
     }
 

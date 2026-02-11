@@ -104,12 +104,16 @@ body {
   to { transform: translateX(0); opacity: 1; }
 }
 
-.animate-trace-panel-in {
+.animate-trace-panel-in,
+.animate-panel-in {
   animation: panelSlideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.animate-span-panel-in {
-  animation: panelSlideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+@media (prefers-reduced-motion: reduce) {
+  .animate-trace-panel-in,
+  .animate-panel-in {
+    animation: none;
+  }
 }
 
 /* Button styles */

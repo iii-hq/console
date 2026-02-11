@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { TracesFilterParams } from '@/api'
 
 export interface TraceFilterState {
@@ -65,8 +65,8 @@ export function useTraceFilters() {
     undefined,
   )
 
-  const [serviceNameTimer, setServiceNameTimer] = useState<NodeJS.Timeout | null>(null)
-  const [operationNameTimer, setOperationNameTimer] = useState<NodeJS.Timeout | null>(null)
+  const serviceNameTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const operationNameTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const [validationWarnings, setValidationWarnings] = useState<{
     durationSwapped?: boolean
@@ -75,47 +75,44 @@ export function useTraceFilters() {
 
   useEffect(() => {
     return () => {
-      if (serviceNameTimer) clearTimeout(serviceNameTimer)
-      if (operationNameTimer) clearTimeout(operationNameTimer)
+      if (serviceNameTimerRef.current) clearTimeout(serviceNameTimerRef.current)
+      if (operationNameTimerRef.current) clearTimeout(operationNameTimerRef.current)
     }
-  }, [serviceNameTimer, operationNameTimer])
+  }, [])
 
   /**
    * Update a single filter field
    * Resets page to 1 when any filter changes (except page/pageSize)
    */
-  const updateFilter = useCallback(
-    (key: string, value: unknown) => {
-      setFilters((prev) => {
-        const newFilters = { ...prev, [key]: value }
+  const updateFilter = useCallback((key: keyof TraceFilterState, value: unknown) => {
+    setFilters((prev) => {
+      const newFilters = { ...prev, [key]: value }
 
-        // Reset page to 1 when any filter changes (except page/pageSize)
-        if (key !== 'page' && key !== 'pageSize') {
-          newFilters.page = 1
-        }
-
-        return newFilters
-      })
-
-      // Handle debouncing for text inputs
-      if (key === 'serviceName') {
-        if (serviceNameTimer) clearTimeout(serviceNameTimer)
-        const timer = setTimeout(() => {
-          setDebouncedServiceName(value as string | undefined)
-        }, 300)
-        setServiceNameTimer(timer)
+      // Reset page to 1 when any filter changes (except page/pageSize)
+      if (key !== 'page' && key !== 'pageSize') {
+        newFilters.page = 1
       }
 
-      if (key === 'operationName') {
-        if (operationNameTimer) clearTimeout(operationNameTimer)
-        const timer = setTimeout(() => {
-          setDebouncedOperationName(value as string | undefined)
-        }, 300)
-        setOperationNameTimer(timer)
-      }
-    },
-    [serviceNameTimer, operationNameTimer],
-  )
+      return newFilters
+    })
+
+    // Handle debouncing for text inputs
+    if (key === 'serviceName') {
+      if (serviceNameTimerRef.current) clearTimeout(serviceNameTimerRef.current)
+      const timer = setTimeout(() => {
+        setDebouncedServiceName(value as string | undefined)
+      }, 300)
+      serviceNameTimerRef.current = timer
+    }
+
+    if (key === 'operationName') {
+      if (operationNameTimerRef.current) clearTimeout(operationNameTimerRef.current)
+      const timer = setTimeout(() => {
+        setDebouncedOperationName(value as string | undefined)
+      }, 300)
+      operationNameTimerRef.current = timer
+    }
+  }, [])
 
   /**
    * Reset all filters to defaults
@@ -124,9 +121,9 @@ export function useTraceFilters() {
     setFilters(defaultFilters)
     setDebouncedServiceName(undefined)
     setDebouncedOperationName(undefined)
-    if (serviceNameTimer) clearTimeout(serviceNameTimer)
-    if (operationNameTimer) clearTimeout(operationNameTimer)
-  }, [serviceNameTimer, operationNameTimer])
+    if (serviceNameTimerRef.current) clearTimeout(serviceNameTimerRef.current)
+    if (operationNameTimerRef.current) clearTimeout(operationNameTimerRef.current)
+  }, [])
 
   /**
    * Count active (non-default) filters
