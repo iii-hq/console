@@ -141,36 +141,10 @@ jobs:
             os: ubuntu-latest
 
     steps:
-      - name: Generate token
-        id: generate_token
-        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
-        with:
-          app-id: ${{ secrets.III_CI_APP_ID }}
-          private-key: ${{ secrets.III_CI_APP_PRIVATE_KEY }}
-
-      - name: Checkout iii-console
+      - name: Checkout code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          token: ${{ steps.generate_token.outputs.token }}
           persist-credentials: false
-
-      - name: Checkout iii SDK
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          repository: iii-hq/sdk
-          token: ${{ steps.generate_token.outputs.token }}
-          ref: main  # Tracks latest SDK; pin to tag for reproducible releases
-          path: _sdk
-          sparse-checkout: packages/rust/iii
-          sparse-checkout-cone-mode: false
-          persist-credentials: false
-
-      - name: Setup SDK path
-        run: |
-          mkdir -p ../sdk/packages/rust
-          cp -r _sdk/packages/rust/iii ../sdk/packages/rust/iii
-          ls ../sdk/packages/rust/iii/Cargo.toml
-          rm -rf _sdk
 
       - name: Download frontend artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -212,7 +186,7 @@ jobs:
           tar: unix
           checksum: sha256
           manifest-path: packages/console-rust/Cargo.toml
-          token: ${{ steps.generate_token.outputs.token }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   notify-complete:
     name: Notify Release Complete
