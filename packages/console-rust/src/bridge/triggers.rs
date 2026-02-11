@@ -63,6 +63,17 @@ pub fn register_triggers(bridge: &III) -> Result<(), IIIError> {
             "_console/streams/list",
             "GET",
         ),
+        // Flow visualization endpoints
+        (
+            "engine.console.flow_config_get",
+            "_console/flows/config/:flow_id",
+            "GET",
+        ),
+        (
+            "engine.console.flow_config_save",
+            "_console/flows/config/:flow_id",
+            "POST",
+        ),
     ];
 
     // Register each trigger with the bridge

@@ -32,6 +32,19 @@ export {
 } from './events/functions'
 // Events - Invocation
 export { emitEvent, invokeFunction, triggerCron } from './events/invocation'
+export { fetchFlowConfig, fetchFlows, saveFlowConfig } from './flows/flows'
+// Flows
+export type {
+  EdgeData as FlowEdgeData,
+  Emit,
+  FlowConfigResponse,
+  FlowEdge,
+  FlowResponse,
+  FlowStep,
+  NodeConfig,
+  NodeData,
+  TriggerData,
+} from './flows/types'
 // Observability - Logs
 export type {
   LegacyLogEntry,

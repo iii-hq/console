@@ -10,7 +10,7 @@ use axum::{
 use rust_embed::Embed;
 use serde_json::json;
 use std::net::SocketAddr;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::CorsLayer;
 use tracing::info;
 
 #[derive(Embed)]
@@ -24,6 +24,7 @@ pub struct ServerConfig {
     pub engine_host: String,
     pub engine_port: u16,
     pub ws_port: u16,
+    pub enable_flow: bool,
 }
 
 /// Generate index.html with runtime config injected
@@ -33,6 +34,7 @@ fn get_index_html(config: &ServerConfig) -> String {
         "engineHost": config.engine_host,
         "enginePort": config.engine_port,
         "wsPort": config.ws_port,
+        "enableFlow": config.enable_flow,
     });
 
     // Get the base index.html from embedded assets
@@ -55,9 +57,10 @@ fn get_index_html(config: &ServerConfig) -> String {
         });
 
     // Inject the runtime config script before the closing </head> tag
+    let config_json = serde_json::to_string(&runtime_config).unwrap_or_else(|_| "{}".to_string());
     let config_script = format!(
         r#"<script>window.__CONSOLE_CONFIG__={};</script>"#,
-        runtime_config
+        config_json
     );
 
     index_content.replace("</head>", &format!("{}</head>", config_script))
@@ -72,7 +75,8 @@ async fn serve_config(
         "enginePort": config.engine_port,
         "wsPort": config.ws_port,
         "consolePort": config.port,
-        "version": env!("CARGO_PKG_VERSION")
+        "version": env!("CARGO_PKG_VERSION"),
+        "enableFlow": config.enable_flow
     }))
 }
 
@@ -155,8 +159,12 @@ pub async fn run_server(config: ServerConfig) -> Result<()> {
     }
     let cors = CorsLayer::new()
         .allow_origin(origins)
-        .allow_methods(Any)
-        .allow_headers(Any);
+        .allow_methods([
+            axum::http::Method::GET,
+            axum::http::Method::POST,
+            axum::http::Method::OPTIONS,
+        ])
+        .allow_headers([header::CONTENT_TYPE, header::ACCEPT]);
 
     // Build the router
     let app = Router::new()
