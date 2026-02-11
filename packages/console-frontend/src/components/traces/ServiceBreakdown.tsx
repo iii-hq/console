@@ -2,6 +2,7 @@ import { ChevronRight } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { getServiceColor } from '@/lib/traceColors'
 import type { WaterfallData } from '@/lib/traceTransform'
+import { formatDuration } from '@/lib/traceUtils'
 
 interface ServiceBreakdownProps {
   data: WaterfallData
@@ -21,12 +22,6 @@ function calculatePercentile(values: number[], percentile: number): number {
   const sorted = [...values].sort((a, b) => a - b)
   const index = Math.ceil((percentile / 100) * sorted.length) - 1
   return sorted[Math.max(0, index)]
-}
-
-function formatDuration(ms: number): string {
-  if (ms < 1) return `${(ms * 1000).toFixed(0)}μs`
-  if (ms < 1000) return `${ms.toFixed(2)}ms`
-  return `${(ms / 1000).toFixed(2)}s`
 }
 
 export function ServiceBreakdown({ data }: ServiceBreakdownProps) {
@@ -86,6 +81,8 @@ export function ServiceBreakdown({ data }: ServiceBreakdownProps) {
         type="button"
         onClick={() => setIsExpanded(!isExpanded)}
         className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-[#141414] transition-colors text-left"
+        aria-label="Toggle services section"
+        aria-expanded={isExpanded}
       >
         <ChevronRight
           className={`w-3 h-3 text-gray-500 transition-transform duration-150 ${isExpanded ? 'rotate-90' : ''}`}

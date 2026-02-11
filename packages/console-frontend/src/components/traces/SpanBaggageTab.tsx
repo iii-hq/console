@@ -1,24 +1,17 @@
 import { Copy, Package } from 'lucide-react'
-import { useState } from 'react'
 import type { VisualizationSpan } from '@/lib/traceTransform'
+import { useCopyToClipboard } from '@/lib/traceUtils'
 
 interface SpanBaggageTabProps {
   span: VisualizationSpan
 }
 
 export function SpanBaggageTab({ span }: SpanBaggageTabProps) {
-  const [copiedKey, setCopiedKey] = useState<string | null>(null)
+  const { copiedKey, copy } = useCopyToClipboard()
 
   const baggageEntries = Object.entries(span.attributes || {})
     .filter(([key]) => key.startsWith('baggage.'))
     .map(([key, value]) => [key.replace('baggage.', ''), value] as [string, unknown])
-
-  const copyToClipboard = (key: string, value: unknown) => {
-    const text = `${key}: ${typeof value === 'object' ? JSON.stringify(value) : String(value)}`
-    navigator.clipboard.writeText(text)
-    setCopiedKey(key)
-    setTimeout(() => setCopiedKey(null), 2000)
-  }
 
   if (baggageEntries.length === 0) {
     return (
@@ -49,7 +42,13 @@ export function SpanBaggageTab({ span }: SpanBaggageTabProps) {
           <button
             key={key}
             type="button"
-            onClick={() => copyToClipboard(key, value)}
+            onClick={() =>
+              copy(
+                key,
+                `${key}: ${typeof value === 'object' ? JSON.stringify(value) : String(value)}`,
+              )
+            }
+            aria-label={`Copy ${key} to clipboard`}
             className="w-full px-4 py-2.5 hover:bg-[#1A1A1A] transition-colors text-left group"
           >
             <div className="flex items-start justify-between gap-3">

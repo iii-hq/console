@@ -116,7 +116,7 @@ cargo run --release -- --config /path/to/iii-console/iii-example/config.yaml
 cd iii-example && pnpm install && pnpm start
 
 # Terminal 3 - Console
-npx iii-console
+./iii-console
 ```
 
 Requires Redis on `localhost:6379`.

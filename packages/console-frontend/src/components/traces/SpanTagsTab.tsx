@@ -1,6 +1,7 @@
 import { ChevronRight, Copy, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import type { VisualizationSpan } from '@/lib/traceTransform'
+import { useCopyToClipboard } from '@/lib/traceUtils'
 
 interface SpanTagsTabProps {
   span: VisualizationSpan
@@ -36,17 +37,19 @@ interface AttributeGroup {
 
 export function SpanTagsTab({ span }: SpanTagsTabProps) {
   const [searchQuery, setSearchQuery] = useState('')
-  const [copiedKey, setCopiedKey] = useState<string | null>(null)
+  const { copiedKey, copy } = useCopyToClipboard()
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
 
   const attributes = span.attributes || {}
   const entries = Object.entries(attributes)
 
-  const filteredEntries = entries.filter(([key, value]) => {
-    if (!searchQuery) return true
-    const query = searchQuery.toLowerCase()
-    return key.toLowerCase().includes(query) || String(value).toLowerCase().includes(query)
-  })
+  const filteredEntries = useMemo(() => {
+    return entries.filter(([key, value]) => {
+      if (!searchQuery) return true
+      const query = searchQuery.toLowerCase()
+      return key.toLowerCase().includes(query) || String(value).toLowerCase().includes(query)
+    })
+  }, [entries, searchQuery])
 
   const groups = useMemo(() => {
     const grouped = new Map<string, [string, unknown][]>()
@@ -81,9 +84,7 @@ export function SpanTagsTab({ span }: SpanTagsTabProps) {
 
   const copyToClipboard = (key: string, value: unknown) => {
     const text = `${key}: ${typeof value === 'object' ? JSON.stringify(value) : String(value)}`
-    navigator.clipboard.writeText(text)
-    setCopiedKey(key)
-    setTimeout(() => setCopiedKey(null), 2000)
+    copy(key, text)
   }
 
   const toggleGroup = (namespace: string) => {

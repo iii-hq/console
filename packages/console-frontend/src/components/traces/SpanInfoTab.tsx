@@ -1,30 +1,17 @@
 import { Copy } from 'lucide-react'
-import { useState } from 'react'
 import type { VisualizationSpan, WaterfallData } from '@/lib/traceTransform'
+import { formatDuration, useCopyToClipboard } from '@/lib/traceUtils'
 
 interface SpanInfoTabProps {
   span: VisualizationSpan
   traceData: WaterfallData | null
 }
 
-function formatDuration(ms: number): string {
-  if (ms < 0.001) return '0μs'
-  if (ms < 1) return `${(ms * 1000).toFixed(0)}μs`
-  if (ms < 1000) return `${ms.toFixed(2)}ms`
-  return `${(ms / 1000).toFixed(2)}s`
-}
-
 export function SpanInfoTab({ span, traceData }: SpanInfoTabProps) {
-  const [copiedField, setCopiedField] = useState<string | null>(null)
+  const { copiedKey: copiedField, copy: copyToClipboard } = useCopyToClipboard()
 
   const service = span.service_name || span.name.split('.')[0]
   const tracePercent = traceData ? (span.duration_ms / traceData.total_duration_ms) * 100 : 0
-
-  const copyToClipboard = (text: string, field: string) => {
-    navigator.clipboard.writeText(text)
-    setCopiedField(field)
-    setTimeout(() => setCopiedField(null), 1500)
-  }
 
   return (
     <div className="p-5 space-y-5">
@@ -131,7 +118,7 @@ export function SpanInfoTab({ span, traceData }: SpanInfoTabProps) {
             <button
               key={field}
               type="button"
-              onClick={() => copyToClipboard(value, field)}
+              onClick={() => copyToClipboard(field, value)}
               className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-[#1A1A1A] transition-colors group text-left"
             >
               <span className="text-[11px] text-gray-500 flex-shrink-0">{label}</span>

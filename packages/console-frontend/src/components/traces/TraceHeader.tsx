@@ -1,7 +1,8 @@
 import { AlertCircle, Clock, Copy, Layers, X } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo } from 'react'
 import { getServiceColor } from '@/lib/traceColors'
 import type { WaterfallData } from '@/lib/traceTransform'
+import { formatDuration, useCopyToClipboard } from '@/lib/traceUtils'
 
 interface TraceHeaderProps {
   data: WaterfallData
@@ -9,27 +10,33 @@ interface TraceHeaderProps {
   onClose: () => void
 }
 
-function formatDuration(ms: number): string {
-  if (ms < 1) return `${(ms * 1000).toFixed(0)}μs`
-  if (ms < 1000) return `${ms.toFixed(2)}ms`
-  return `${(ms / 1000).toFixed(2)}s`
-}
-
 export function TraceHeader({ data, traceId, onClose }: TraceHeaderProps) {
-  const [copied, setCopied] = useState(false)
+  const { copiedKey, copy } = useCopyToClipboard()
+  const copied = copiedKey === 'traceId'
   const rootSpan = data.spans.find((s) => s.depth === 0)
-  const errorCount = data.spans.filter((s) => s.status === 'error').length
-  const hasErrors = errorCount > 0
 
-  const services = new Set(data.spans.map((s) => s.service_name).filter(Boolean))
-  const serviceCount = Math.max(services.size, 1)
-  const serviceList = Array.from(services).filter(Boolean)
+  const { errorCount, serviceList, serviceDurations } = useMemo(() => {
+    let errorCount = 0
+    const services = new Set<string>()
+    const durationMap = new Map<string, number>()
+
+    for (const span of data.spans) {
+      if (span.status === 'error') errorCount++
+      const svc = span.service_name || span.name.split('.')[0]
+      if (span.service_name) services.add(span.service_name)
+      durationMap.set(svc, (durationMap.get(svc) || 0) + span.duration_ms)
+    }
+
+    const serviceList = Array.from(services).filter((s): s is string => Boolean(s))
+    return { errorCount, serviceList, serviceDurations: durationMap }
+  }, [data])
+
+  const hasErrors = errorCount > 0
+  const serviceCount = Math.max(serviceList.length, 1)
   const rootService = rootSpan?.service_name || rootSpan?.name.split('.')[0] || 'trace'
 
   const copyTraceId = () => {
-    navigator.clipboard.writeText(traceId)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
+    copy('traceId', traceId)
   }
 
   return (
@@ -104,10 +111,7 @@ export function TraceHeader({ data, traceId, onClose }: TraceHeaderProps) {
         <div className="px-4 pb-2.5">
           <div className="flex h-1.5 rounded-full overflow-hidden bg-[#141414] border border-[#1D1D1D]">
             {serviceList.map((svc) => {
-              const svcSpans = data.spans.filter(
-                (s) => (s.service_name || s.name.split('.')[0]) === svc,
-              )
-              const svcDuration = svcSpans.reduce((sum, s) => sum + s.duration_ms, 0)
+              const svcDuration = serviceDurations.get(svc) || 0
               const pct = (svcDuration / data.total_duration_ms) * 100
 
               return (
@@ -116,7 +120,7 @@ export function TraceHeader({ data, traceId, onClose }: TraceHeaderProps) {
                   className="h-full transition-all duration-300"
                   style={{
                     width: `${Math.max(2, pct)}%`,
-                    backgroundColor: getServiceColor(svc!),
+                    backgroundColor: getServiceColor(svc),
                     opacity: 0.8,
                   }}
                   title={`${svc}: ${pct.toFixed(1)}%`}
@@ -129,7 +133,7 @@ export function TraceHeader({ data, traceId, onClose }: TraceHeaderProps) {
               <div key={svc} className="flex items-center gap-1 text-[9px] text-gray-500">
                 <div
                   className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: getServiceColor(svc!) }}
+                  style={{ backgroundColor: getServiceColor(svc) }}
                 />
                 <span className="font-mono truncate">{svc}</span>
               </div>

@@ -98,24 +98,18 @@ body {
   animation-delay: 0.4s;
 }
 
-/* Trace detail panel slide-in animation */
-@keyframes tracePanelSlideIn {
+/* Panel slide-in animation (trace detail & span side panel) */
+@keyframes panelSlideIn {
   from { transform: translateX(24px); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
 }
 
 .animate-trace-panel-in {
-  animation: tracePanelSlideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-/* Span panel slide-in animation (side panel) */
-@keyframes spanPanelSlideIn {
-  from { transform: translateX(24px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+  animation: panelSlideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .animate-span-panel-in {
-  animation: spanPanelSlideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: panelSlideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Button styles */

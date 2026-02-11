@@ -1,7 +1,8 @@
 import { ArrowUp, Clock, Copy, Layers, X, Zap } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { VisualizationSpan, WaterfallData } from '@/lib/traceTransform'
+import { formatDuration, useCopyToClipboard } from '@/lib/traceUtils'
 import { SpanBaggageTab } from './SpanBaggageTab'
 import { SpanErrorsTab } from './SpanErrorsTab'
 import { SpanInfoTab } from './SpanInfoTab'
@@ -15,15 +16,8 @@ interface SpanPanelProps {
   onNavigateToSpan: (span: VisualizationSpan) => void
 }
 
-function formatDuration(ms: number): string {
-  if (ms < 0.001) return '0μs'
-  if (ms < 1) return `${(ms * 1000).toFixed(0)}μs`
-  if (ms < 1000) return `${ms.toFixed(2)}ms`
-  return `${(ms / 1000).toFixed(2)}s`
-}
-
 export function SpanPanel({ span, traceData, onClose, onNavigateToSpan }: SpanPanelProps) {
-  const [copiedField, setCopiedField] = useState<string | null>(null)
+  const { copiedKey: copiedField, copy: copyToClipboard } = useCopyToClipboard()
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -38,6 +32,7 @@ export function SpanPanel({ span, traceData, onClose, onNavigateToSpan }: SpanPa
     const parentSpan = traceData.spans.find((s) => s.span_id === span.parent_span_id)
     const childSpans = traceData.spans.filter((s) => s.parent_span_id === span.span_id)
     const childDuration = childSpans.reduce((sum, child) => sum + child.duration_ms, 0)
+    // Note: self-time is approximate when child spans overlap (parallel execution)
     const selfTime = Math.max(0, span.duration_ms - childDuration)
     return { parentSpan, childSpans, selfTime, childDuration }
   }, [span, traceData])
@@ -48,12 +43,6 @@ export function SpanPanel({ span, traceData, onClose, onNavigateToSpan }: SpanPa
   const attrCount = Object.keys(span.attributes || {}).length
   const eventCount = span.events?.length || 0
   const service = span.service_name || span.name.split('.')[0]
-
-  const copyToClipboard = (text: string, field: string) => {
-    navigator.clipboard.writeText(text)
-    setCopiedField(field)
-    setTimeout(() => setCopiedField(null), 1500)
-  }
 
   const statusConfig = {
     ok: {
@@ -74,7 +63,12 @@ export function SpanPanel({ span, traceData, onClose, onNavigateToSpan }: SpanPa
       border: 'rgba(107,114,128,0.15)',
       label: 'UNSET',
     },
-  }[span.status]
+  }[span.status] ?? {
+    color: '#6B7280',
+    bg: 'rgba(107,114,128,0.08)',
+    border: 'rgba(107,114,128,0.15)',
+    label: 'UNKNOWN',
+  }
 
   return (
     <div className="h-full bg-[#0A0A0A] overflow-hidden flex flex-col animate-span-panel-in">
@@ -113,7 +107,7 @@ export function SpanPanel({ span, traceData, onClose, onNavigateToSpan }: SpanPa
         <div className="flex items-center gap-2 px-4 pb-2.5 flex-wrap">
           <button
             type="button"
-            onClick={() => copyToClipboard(span.span_id, 'spanId')}
+            onClick={() => copyToClipboard('spanId', span.span_id)}
             className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-gray-300 transition-colors font-mono group"
           >
             <span>{span.span_id.slice(0, 12)}</span>
@@ -181,7 +175,9 @@ export function SpanPanel({ span, traceData, onClose, onNavigateToSpan }: SpanPa
           <div className="px-4 pb-2.5">
             <button
               type="button"
-              onClick={() => onNavigateToSpan(traceContext.parentSpan!)}
+              onClick={() => {
+                if (traceContext.parentSpan) onNavigateToSpan(traceContext.parentSpan)
+              }}
               className="flex items-center gap-1.5 w-full px-2.5 py-1.5 bg-[#141414] border border-[#1D1D1D] rounded hover:bg-[#1A1A1A] hover:border-[#252525] transition-colors group text-left"
             >
               <ArrowUp className="w-3 h-3 text-gray-500 group-hover:text-[#F3F724] transition-colors flex-shrink-0" />

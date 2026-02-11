@@ -1,13 +1,13 @@
 import { AlertCircle, CheckCircle2, Copy } from 'lucide-react'
-import { useState } from 'react'
 import type { VisualizationSpan } from '@/lib/traceTransform'
+import { useCopyToClipboard } from '@/lib/traceUtils'
 
 interface SpanErrorsTabProps {
   span: VisualizationSpan
 }
 
 export function SpanErrorsTab({ span }: SpanErrorsTabProps) {
-  const [copiedStack, setCopiedStack] = useState(false)
+  const { copiedKey, copy } = useCopyToClipboard()
   const hasError = span.status === 'error'
 
   const errorMessage = span.attributes?.['error.message'] as string | undefined
@@ -23,9 +23,7 @@ export function SpanErrorsTab({ span }: SpanErrorsTabProps) {
 
   const copyStackTrace = () => {
     if (displayStack) {
-      navigator.clipboard.writeText(displayStack)
-      setCopiedStack(true)
-      setTimeout(() => setCopiedStack(false), 2000)
+      copy('stackTrace', displayStack)
     }
   }
 
@@ -79,7 +77,7 @@ export function SpanErrorsTab({ span }: SpanErrorsTabProps) {
               onClick={copyStackTrace}
               className="flex items-center gap-1.5 px-2 py-1 text-[10px] text-gray-500 hover:text-gray-300 hover:bg-[#1D1D1D] rounded transition-colors"
             >
-              {copiedStack ? (
+              {copiedKey === 'stackTrace' ? (
                 <span className="text-[#22C55E]">Copied</span>
               ) : (
                 <>

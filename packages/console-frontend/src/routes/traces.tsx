@@ -33,6 +33,7 @@ import {
   type VisualizationSpan,
   type WaterfallData,
 } from '@/lib/traceTransform'
+import { formatDuration } from '@/lib/traceUtils'
 
 export const Route = createFileRoute('/traces')({
   component: TracesPage,
@@ -70,12 +71,7 @@ function formatTime(timestamp: number): string {
   })
 }
 
-function formatDuration(ms: number | undefined): string {
-  if (!ms) return '-'
-  if (ms < 1) return '<1ms'
-  if (ms < 1000) return `${Math.round(ms)}ms`
-  return `${(ms / 1000).toFixed(2)}s`
-}
+const DEFAULT_TRACE_LIMIT = 10_000
 
 function TracesPage() {
   const [searchQuery, setSearchQuery] = useState('')
@@ -110,7 +106,7 @@ function TracesPage() {
       const params = getApiParams()
       const data = await fetchTraces({
         ...params,
-        limit: params.limit || 10000,
+        limit: params.limit || DEFAULT_TRACE_LIMIT,
         include_internal: showSystem,
       })
 

@@ -1,6 +1,7 @@
 import { ChevronRight } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { VisualizationSpan, WaterfallData } from '@/lib/traceTransform'
+import { formatDuration } from '@/lib/traceUtils'
 
 interface WaterfallChartProps {
   data: WaterfallData
@@ -12,12 +13,6 @@ interface SpanNode extends VisualizationSpan {
   children: SpanNode[]
   isExpanded: boolean
   isCriticalPath: boolean
-}
-
-function formatDuration(ms: number): string {
-  if (ms < 1) return `${(ms * 1000).toFixed(0)}µs`
-  if (ms < 1000) return `${ms.toFixed(2)}ms`
-  return `${(ms / 1000).toFixed(2)}s`
 }
 
 function buildSpanTree(spans: VisualizationSpan[]): SpanNode[] {
