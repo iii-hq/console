@@ -1,6 +1,6 @@
 [package]
 name = "iii-console"
-version = "0.1.1-alpha"
+version = "0.1.2-alpha"
 edition = "2021"
 description = "Developer console for the iii engine"
 license = "Apache-2.0"
