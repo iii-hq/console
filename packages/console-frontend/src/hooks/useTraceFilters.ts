@@ -151,12 +151,9 @@ export function useTraceFilters() {
    * Maps camelCase state properties to snake_case API parameters
    * Filters out undefined, null, and empty strings
    */
-  const { apiParams, computedWarnings } = useMemo(() => {
-    const params: TracesFilterParams = {
-      offset: (filters.page - 1) * filters.pageSize,
-      limit: filters.pageSize,
-    }
-
+  // Filter-only params (excludes pagination) - stable reference when only page changes
+  const { filterOnlyParams, computedWarnings } = useMemo(() => {
+    const params: TracesFilterParams = {}
     const warnings: { durationSwapped?: boolean; timeRangeSwapped?: boolean } = {}
 
     if (filters.serviceName) params.service_name = filters.serviceName
@@ -209,8 +206,29 @@ export function useTraceFilters() {
     if (filters.sortBy) params.sort_by = filters.sortBy
     if (filters.sortOrder) params.sort_order = filters.sortOrder
 
-    return { apiParams: params, computedWarnings: warnings }
-  }, [filters])
+    return { filterOnlyParams: params, computedWarnings: warnings }
+  }, [
+    filters.serviceName,
+    filters.operationName,
+    filters.status,
+    filters.minDurationMs,
+    filters.maxDurationMs,
+    filters.startTime,
+    filters.endTime,
+    filters.attributes,
+    filters.sortBy,
+    filters.sortOrder,
+  ])
+
+  // Full params including pagination offset/limit
+  const apiParams = useMemo(
+    () => ({
+      ...filterOnlyParams,
+      offset: (filters.page - 1) * filters.pageSize,
+      limit: filters.pageSize,
+    }),
+    [filterOnlyParams, filters.page, filters.pageSize],
+  )
 
   useEffect(() => {
     setValidationWarnings(computedWarnings)
@@ -219,6 +237,11 @@ export function useTraceFilters() {
   const getApiParams = useCallback((): TracesFilterParams => {
     return apiParams
   }, [apiParams])
+
+  // Returns filter params without pagination - stable when only page changes
+  const getFilterOnlyParams = useCallback((): TracesFilterParams => {
+    return filterOnlyParams
+  }, [filterOnlyParams])
 
   const clearValidationWarnings = useCallback(() => {
     setValidationWarnings({})
@@ -232,6 +255,7 @@ export function useTraceFilters() {
     resetFilters,
     getActiveFilterCount,
     getApiParams,
+    getFilterOnlyParams,
     validationWarnings,
     clearValidationWarnings,
   }

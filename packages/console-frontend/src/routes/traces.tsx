@@ -93,7 +93,7 @@ function TracesPage() {
     updateFilter,
     resetFilters,
     getActiveFilterCount,
-    getApiParams,
+    getFilterOnlyParams,
     validationWarnings,
     clearValidationWarnings,
   } = useTraceFilters()
@@ -103,10 +103,11 @@ function TracesPage() {
   const loadTraces = useCallback(async () => {
     setIsLoading(true)
     try {
-      const params = getApiParams()
+      const params = getFilterOnlyParams()
       const data = await fetchTraces({
         ...params,
-        limit: params.limit || DEFAULT_TRACE_LIMIT,
+        offset: 0,
+        limit: DEFAULT_TRACE_LIMIT,
         include_internal: showSystem,
       })
 
@@ -146,7 +147,7 @@ function TracesPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [getApiParams, showSystem])
+  }, [getFilterOnlyParams, showSystem])
 
   const loadTraceSpans = useCallback(async (traceId: string) => {
     setIsLoadingSpans(true)
