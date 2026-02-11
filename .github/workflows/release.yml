@@ -9,38 +9,45 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  create-release:
-    name: Create Release
+  notify-start:
+    name: Notify Release Start
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-
+      contents: read
+    outputs:
+      slack_ts: ${{ steps.slack.outputs.ts }}
     steps:
-      - name: Generate token
-        id: generate_token
-        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
+      - name: Send Slack notification
+        id: slack
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
         with:
-          app-id: ${{ secrets.MOTIA_CI_APP_ID }}
-          private-key: ${{ secrets.MOTIA_CI_APP_PRIVATE_KEY }}
-          owner: MotiaDev
-          permission-contents: write
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
+          payload: |
+            channel: ${{ secrets.SLACK_CHANNEL_ID }}
+            text: ":rocket: *iii-console Release Started*\nVersion: `${{ github.ref_name }}`\nTriggered by: ${{ github.actor }}\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View workflow>"
 
-      - name: Checkout code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          persist-credentials: false
-
-      - name: Create Release
-        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2
-        with:
-          token: ${{ steps.generate_token.outputs.token }}
-          draft: false
-          prerelease: false
-          generate_release_notes: true
+  detect-prerelease:
+    name: Detect Pre-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      is_prerelease: ${{ steps.check.outputs.is_prerelease }}
+    steps:
+      - name: Check for pre-release tag
+        id: check
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [[ "$TAG" =~ -(alpha|beta|rc) ]]; then
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
 
   build-frontend:
     name: Build Frontend
-    needs: create-release
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -81,6 +88,34 @@ jobs:
           path: packages/console-frontend/dist-binary/
           retention-days: 1
 
+  create-release:
+    name: Create Release
+    needs: [notify-start, detect-prerelease, build-frontend]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Generate token
+        id: generate_token
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
+        with:
+          app-id: ${{ secrets.III_CI_APP_ID }}
+          private-key: ${{ secrets.III_CI_APP_PRIVATE_KEY }}
+
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Create Release
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2
+        with:
+          token: ${{ steps.generate_token.outputs.token }}
+          draft: false
+          prerelease: ${{ needs.detect-prerelease.outputs.is_prerelease == 'true' }}
+          generate_release_notes: true
+
   build-release:
     name: Build Release Binaries
     needs: [create-release, build-frontend]
@@ -110,10 +145,8 @@ jobs:
         id: generate_token
         uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
         with:
-          app-id: ${{ secrets.MOTIA_CI_APP_ID }}
-          private-key: ${{ secrets.MOTIA_CI_APP_PRIVATE_KEY }}
-          owner: MotiaDev
-          permission-contents: write
+          app-id: ${{ secrets.III_CI_APP_ID }}
+          private-key: ${{ secrets.III_CI_APP_PRIVATE_KEY }}
 
       - name: Checkout iii-console
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -147,9 +180,11 @@ jobs:
 
       - name: Install cross-compilation tools
         if: runner.os == 'Linux'
+        env:
+          BUILD_TARGET: ${{ matrix.target }}
         run: |
           sudo apt-get update
-          case "${{ matrix.target }}" in
+          case "$BUILD_TARGET" in
             x86_64-unknown-linux-musl)
               sudo apt-get install -y musl-tools
               ;;
@@ -178,3 +213,56 @@ jobs:
           checksum: sha256
           manifest-path: packages/console-rust/Cargo.toml
           token: ${{ steps.generate_token.outputs.token }}
+
+  notify-complete:
+    name: Notify Release Complete
+    needs: [notify-start, detect-prerelease, create-release, build-frontend, build-release]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Determine overall status
+        id: status
+        env:
+          CREATE_RESULT: ${{ needs.create-release.result }}
+          BUILD_RESULT: ${{ needs.build-release.result }}
+          FRONTEND_RESULT: ${{ needs.build-frontend.result }}
+        run: |
+          if [[ "$CREATE_RESULT" == "success" && \
+                "$BUILD_RESULT" == "success" && \
+                "$FRONTEND_RESULT" == "success" ]]; then
+            {
+              echo "result=success"
+              echo "emoji=:white_check_mark:"
+              echo "text=completed successfully"
+            } >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "result=failure"
+              echo "emoji=:x:"
+              echo "text=failed"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Update Slack notification
+        if: needs.notify-start.outputs.slack_ts != ''
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        with:
+          method: chat.update
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
+          payload: |
+            channel: ${{ secrets.SLACK_CHANNEL_ID }}
+            ts: ${{ needs.notify-start.outputs.slack_ts }}
+            text: "${{ steps.status.outputs.emoji }} *iii-console Release ${{ steps.status.outputs.text }}*\nVersion: `${{ github.ref_name }}`\nPre-release: ${{ needs.detect-prerelease.outputs.is_prerelease }}\n\n*Job Results:*\n- Frontend Build: ${{ needs.build-frontend.result }}\n- Create Release: ${{ needs.create-release.result }}\n- Build Binaries: ${{ needs.build-release.result }}\n\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View workflow>"
+
+      - name: Send new notification on failure
+        if: needs.notify-start.outputs.slack_ts == '' && steps.status.outputs.result == 'failure'
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
+          payload: |
+            channel: ${{ secrets.SLACK_CHANNEL_ID }}
+            text: ":x: *iii-console Release Failed*\nVersion: `${{ github.ref_name }}`\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View workflow>"
