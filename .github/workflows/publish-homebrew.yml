@@ -16,7 +16,7 @@ on:
 env:
   TAP_REPO: iii-hq/homebrew-tap
   FORMULA_PATH: Formula/iii-console.rb
-  BINARY_REPO: MotiaDev/iii-console
+  BINARY_REPO: iii-hq/console
   BIN_NAME: iii-console
 
 jobs:
@@ -115,26 +115,26 @@ jobs:
           cat <<BREWEOF > "$FORMULA_FILE"
           class IiiConsole < Formula
             desc "Developer console for the iii engine"
-            homepage "https://github.com/MotiaDev/iii-console"
+            homepage "https://github.com/iii-hq/console"
             version "${VERSION_NUMBER}"
             license "Apache-2.0"
 
             on_macos do
               if Hardware::CPU.arm?
-                url "https://github.com/MotiaDev/iii-console/releases/download/${RELEASE_VERSION}/iii-console-aarch64-apple-darwin.tar.gz"
+                url "https://github.com/iii-hq/console/releases/download/${RELEASE_VERSION}/iii-console-aarch64-apple-darwin.tar.gz"
                 sha256 "${MACOS_ARM_SHA}"
               else
-                url "https://github.com/MotiaDev/iii-console/releases/download/${RELEASE_VERSION}/iii-console-x86_64-apple-darwin.tar.gz"
+                url "https://github.com/iii-hq/console/releases/download/${RELEASE_VERSION}/iii-console-x86_64-apple-darwin.tar.gz"
                 sha256 "${MACOS_X86_SHA}"
               end
             end
 
             on_linux do
               if Hardware::CPU.arm?
-                url "https://github.com/MotiaDev/iii-console/releases/download/${RELEASE_VERSION}/iii-console-aarch64-unknown-linux-gnu.tar.gz"
+                url "https://github.com/iii-hq/console/releases/download/${RELEASE_VERSION}/iii-console-aarch64-unknown-linux-gnu.tar.gz"
                 sha256 "${LINUX_ARM_SHA}"
               else
-                url "https://github.com/MotiaDev/iii-console/releases/download/${RELEASE_VERSION}/iii-console-x86_64-unknown-linux-gnu.tar.gz"
+                url "https://github.com/iii-hq/console/releases/download/${RELEASE_VERSION}/iii-console-x86_64-unknown-linux-gnu.tar.gz"
                 sha256 "${LINUX_X86_SHA}"
               end
             end
