@@ -676,7 +676,7 @@ fi
 # --- Post-install branding ----------------------------------------------------
 
 printf "\n"
-printf "${MUTED} ▀  ▀  ▀  ${NC}                              ▄\n"
+printf "${MUTED} ▀  ▀  ▀  ${NC}                             \n"
 printf "${MUTED} █  █  █  ${NC}█▀▀ █▀▀█ █▀▀▄ █▀▀ █▀▀█ █ █▀▀█\n"
 printf "${MUTED} █  █  █  ${NC}█   █  █ █  █ ▀▀█ █  █ █ █▀▀▀\n"
 printf "${MUTED} ▀  ▀  ▀  ${NC}▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀ ▀▀▀▀ ▀ ▀▀▀▀\n"
