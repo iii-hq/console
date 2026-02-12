@@ -550,7 +550,9 @@ download_and_install() {
   fi
 
   # Verify SHA256 checksum if available
-  local checksum_url="${asset_url}.sha256"
+  # Checksum files are named without the archive extension (e.g. foo.sha256, not foo.tar.gz.sha256)
+  local checksum_url
+  checksum_url=$(echo "$asset_url" | sed -E 's/\.(tar\.gz|tgz|zip)$/.sha256/')
   local checksum_file="$tmpdir/${asset_name}.sha256"
   if curl -fsSL ${GITHUB_TOKEN:+-H "Authorization: Bearer $GITHUB_TOKEN"} -o "$checksum_file" "$checksum_url" 2>/dev/null; then
     local expected_hash
