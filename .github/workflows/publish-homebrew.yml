@@ -1,0 +1,215 @@
+name: Publish to Homebrew
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.2.3)'
+        required: true
+        type: string
+      dry_run:
+        description: 'Run in dry-run mode (skip actual publish)'
+        required: false
+        type: boolean
+        default: true
+
+env:
+  TAP_REPO: iii-hq/homebrew-tap
+  FORMULA_PATH: Formula/iii-console.rb
+  BINARY_REPO: MotiaDev/iii-console
+  BIN_NAME: iii-console
+
+jobs:
+  publish-homebrew:
+    name: Update Homebrew Formula
+    runs-on: macos-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Validate version format
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid version format. Expected: v1.2.3"
+            exit 1
+          fi
+
+          if [[ "$VERSION" =~ - ]]; then
+            echo "::error::Pre-release versions not allowed in Homebrew"
+            exit 1
+          fi
+
+          echo "Version validated: $VERSION"
+
+      - name: Generate token
+        id: generate_token
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
+        with:
+          app-id: ${{ secrets.III_CI_APP_ID }}
+          private-key: ${{ secrets.III_CI_APP_PRIVATE_KEY }}
+          repositories: homebrew-tap
+
+      - name: Checkout tap repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          repository: ${{ env.TAP_REPO }}
+          token: ${{ steps.generate_token.outputs.token }}
+          path: homebrew-tap
+
+      - name: Download release assets
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          curl -L --fail -o iii-console-x86_64.tar.gz \
+            "https://github.com/${{ env.BINARY_REPO }}/releases/download/${VERSION}/iii-console-x86_64-apple-darwin.tar.gz"
+
+          curl -L --fail -o iii-console-aarch64.tar.gz \
+            "https://github.com/${{ env.BINARY_REPO }}/releases/download/${VERSION}/iii-console-aarch64-apple-darwin.tar.gz"
+
+          for file in iii-console-x86_64.tar.gz iii-console-aarch64.tar.gz; do
+            if [ ! -s "$file" ]; then
+              echo "::error::$file is missing or empty"
+              exit 1
+            fi
+          done
+          ls -lh *.tar.gz
+
+      - name: Calculate SHA256 checksums
+        id: checksums
+        run: |
+          X86_SHA=$(shasum -a 256 iii-console-x86_64.tar.gz | awk '{print $1}')
+          ARM_SHA=$(shasum -a 256 iii-console-aarch64.tar.gz | awk '{print $1}')
+
+          echo "x86_64_sha256=${X86_SHA}" >> "$GITHUB_OUTPUT"
+          echo "aarch64_sha256=${ARM_SHA}" >> "$GITHUB_OUTPUT"
+
+          echo "Checksums calculated:"
+          echo "  x86_64: ${X86_SHA}"
+          echo "  aarch64: ${ARM_SHA}"
+
+      - name: Update formula
+        env:
+          VERSION: ${{ inputs.version }}
+          X86_SHA: ${{ steps.checksums.outputs.x86_64_sha256 }}
+          ARM_SHA: ${{ steps.checksums.outputs.aarch64_sha256 }}
+        run: |
+          VERSION_NUMBER="${VERSION#v}"
+
+          cd homebrew-tap
+
+          mkdir -p Formula
+
+          cat > ${{ env.FORMULA_PATH }} <<BREWEOF
+          class IiiConsole < Formula
+            desc "Developer console for the iii engine"
+            homepage "https://github.com/MotiaDev/iii-console"
+            version "${VERSION_NUMBER}"
+            license "Apache-2.0"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/MotiaDev/iii-console/releases/download/${VERSION}/iii-console-aarch64-apple-darwin.tar.gz"
+                sha256 "${ARM_SHA}"
+              else
+                url "https://github.com/MotiaDev/iii-console/releases/download/${VERSION}/iii-console-x86_64-apple-darwin.tar.gz"
+                sha256 "${X86_SHA}"
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.arm?
+                url "https://github.com/MotiaDev/iii-console/releases/download/${VERSION}/iii-console-aarch64-unknown-linux-gnu.tar.gz"
+              else
+                url "https://github.com/MotiaDev/iii-console/releases/download/${VERSION}/iii-console-x86_64-unknown-linux-gnu.tar.gz"
+              end
+            end
+
+            def install
+              bin.install "iii-console"
+            end
+
+            test do
+              system "#{bin}/iii-console", "--version"
+            end
+          end
+          BREWEOF
+
+          echo "Formula updated:"
+          cat ${{ env.FORMULA_PATH }}
+
+      - name: Test formula locally
+        run: |
+          cd homebrew-tap
+          brew audit --new --formula ${{ env.FORMULA_PATH }} || true
+          brew install --build-from-source ./${{ env.FORMULA_PATH }}
+          iii-console --version
+          brew uninstall iii-console
+
+      - name: Commit and push changes
+        if: inputs.dry_run != true
+        run: |
+          cd homebrew-tap
+
+          git config user.name "iii-ci[bot]"
+          git config user.email "iii-ci[bot]@users.noreply.github.com"
+
+          git add ${{ env.FORMULA_PATH }}
+          git commit -m "chore: update iii-console to ${{ inputs.version }}
+
+          Automated update from release workflow.
+
+          Changes:
+          - Version: ${{ inputs.version }}
+          - x86_64 SHA256: ${{ steps.checksums.outputs.x86_64_sha256 }}
+          - aarch64 SHA256: ${{ steps.checksums.outputs.aarch64_sha256 }}
+          "
+
+          git push origin main
+
+          echo "Formula published to homebrew-tap!"
+
+      - name: Dry-run summary
+        if: inputs.dry_run == true
+        run: |
+          echo "DRY RUN MODE - No changes pushed"
+          echo ""
+          echo "Formula validated successfully:"
+          echo "- Version: ${{ inputs.version }}"
+          echo "- x86_64 SHA256: ${{ steps.checksums.outputs.x86_64_sha256 }}"
+          echo "- aarch64 SHA256: ${{ steps.checksums.outputs.aarch64_sha256 }}"
+          echo ""
+          echo "Set dry_run=false to publish for real."
+
+      - name: Notify Slack on success
+        if: success() && inputs.dry_run != true
+        continue-on-error: true
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
+          payload: |
+            channel: ${{ secrets.SLACK_CHANNEL_ID }}
+            text: "Homebrew formula updated"
+            blocks:
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: "*Homebrew Formula Updated* :beer:\n\nVersion: `${{ inputs.version }}`\n\nUsers can now install with:\n```brew tap iii-hq/tap\nbrew install iii-console```"
+
+      - name: Notify Slack on failure
+        if: failure()
+        continue-on-error: true
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
+          payload: |
+            channel: ${{ secrets.SLACK_CHANNEL_ID }}
+            text: "Homebrew publish failed"
+            blocks:
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: "*Homebrew Publish Failed* :x:\n\nVersion: `${{ inputs.version }}`\n\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Logs>"

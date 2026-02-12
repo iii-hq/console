@@ -11,8 +11,9 @@ on:
           - patch
           - minor
           - major
+          - custom
       prerelease:
-        description: 'Pre-release identifier (none for stable)'
+        description: 'Pre-release identifier (none for stable, ignored when bump is custom)'
         required: false
         type: choice
         options:
@@ -20,6 +21,10 @@ on:
           - alpha
           - beta
           - rc
+      custom_version:
+        description: 'Custom version (required when bump is custom, format: X.Y.Z or X.Y.Z-suffix)'
+        required: false
+        type: string
       dry_run:
         description: 'Dry run (no tag push)'
         required: false
@@ -65,34 +70,53 @@ jobs:
         env:
           BUMP_TYPE: ${{ inputs.bump }}
           PRERELEASE_ID: ${{ inputs.prerelease }}
+          CUSTOM_VERSION: ${{ inputs.custom_version }}
         run: |
           CARGO_TOML="packages/console-rust/Cargo.toml"
           CURRENT=$(sed -n '/^\[package\]/,/^\[/{/^version/p}' "$CARGO_TOML" | sed 's/version = "\(.*\)"/\1/')
           echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
 
-          # Strip pre-release suffix for base version
-          BASE="${CURRENT%%-*}"
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE"
+          if [[ "$BUMP_TYPE" == "custom" ]]; then
+            # Custom version path
+            if [[ -z "$CUSTOM_VERSION" ]]; then
+              echo "::error::custom_version is required when bump is custom"
+              exit 1
+            fi
 
-          case "$BUMP_TYPE" in
-            major)
-              MAJOR=$((MAJOR + 1))
-              MINOR=0
-              PATCH=0
-              ;;
-            minor)
-              MINOR=$((MINOR + 1))
-              PATCH=0
-              ;;
-            patch)
-              PATCH=$((PATCH + 1))
-              ;;
-          esac
+            # Strip leading 'v' if present
+            NEW_VERSION="${CUSTOM_VERSION#v}"
 
-          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+            # Validate format: X.Y.Z or X.Y.Z-suffix
+            if ! [[ "$NEW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?$ ]]; then
+              echo "::error::Invalid version format: $NEW_VERSION (expected X.Y.Z or X.Y.Z-suffix)"
+              exit 1
+            fi
+          else
+            # Standard bump path
+            # Strip pre-release suffix for base version
+            BASE="${CURRENT%%-*}"
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE"
 
-          if [[ "$PRERELEASE_ID" != "none" && -n "$PRERELEASE_ID" ]]; then
-            NEW_VERSION="${NEW_VERSION}-${PRERELEASE_ID}"
+            case "$BUMP_TYPE" in
+              major)
+                MAJOR=$((MAJOR + 1))
+                MINOR=0
+                PATCH=0
+                ;;
+              minor)
+                MINOR=$((MINOR + 1))
+                PATCH=0
+                ;;
+              patch)
+                PATCH=$((PATCH + 1))
+                ;;
+            esac
+
+            NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+
+            if [[ "$PRERELEASE_ID" != "none" && -n "$PRERELEASE_ID" ]]; then
+              NEW_VERSION="${NEW_VERSION}-${PRERELEASE_ID}"
+            fi
           fi
 
           echo "new=$NEW_VERSION" >> "$GITHUB_OUTPUT"
