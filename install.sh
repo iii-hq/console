@@ -23,7 +23,7 @@ if [[ "$INSTALL_DIR" =~ [^a-zA-Z0-9/_.~:-] ]]; then
   exit 1
 fi
 
-# Colors (matching opencode style)
+# Colors
 MUTED='\033[0;2m'
 RED='\033[0;31m'
 ORANGE='\033[38;5;214m'
