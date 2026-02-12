@@ -38,10 +38,13 @@ jobs:
                     text: "Triggered by ${{ github.actor }} | <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow>"
 
       - name: Save Slack timestamp to artifact
+        env:
+          SLACK_TS: ${{ steps.slack.outputs.ts }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
           mkdir -p slack-data
-          echo "${{ steps.slack.outputs.ts }}" > slack-data/message_ts.txt
-          echo "${{ github.ref_name }}" > slack-data/version.txt
+          echo "$SLACK_TS" > slack-data/message_ts.txt
+          echo "$REF_NAME" > slack-data/version.txt
 
       - name: Upload Slack data
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

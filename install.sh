@@ -17,8 +17,26 @@ REPO="${REPO:-iii-hq/console}"
 BIN_NAME="${BIN_NAME:-iii-console}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 
+# Validate REPO format (owner/repo)
+if [[ ! "$REPO" =~ ^[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+$ ]]; then
+  echo "error: REPO must match owner/repo format (got: $REPO)" >&2
+  exit 1
+fi
+
+# Validate BIN_NAME (no path separators or special characters)
+if [[ ! "$BIN_NAME" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+  echo "error: BIN_NAME contains invalid characters (got: $BIN_NAME)" >&2
+  exit 1
+fi
+
+# Validate INSTALL_DIR starts with a safe character (prevent --flag injection)
+if [[ ! "$INSTALL_DIR" =~ ^[/~.] ]]; then
+  echo "error: INSTALL_DIR must start with /, ~, or . (got: $INSTALL_DIR)" >&2
+  exit 1
+fi
+
 # Validate INSTALL_DIR contains only safe path characters
-if [[ "$INSTALL_DIR" =~ [^a-zA-Z0-9/_.~:-] ]]; then
+if [[ "$INSTALL_DIR" =~ [^a-zA-Z0-9/_.~:@+-] ]]; then
   echo "error: INSTALL_DIR contains invalid characters" >&2
   exit 1
 fi
@@ -135,6 +153,18 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# --- Input validation ---------------------------------------------------------
+
+# Validate requested_version format if provided (semver-like with optional pre-release)
+if [[ -n "$requested_version" ]]; then
+  # Strip leading v for validation
+  local_ver="${requested_version#v}"
+  if [[ ! "$local_ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+    err "invalid version format: $requested_version (expected: X.Y.Z or X.Y.Z-pre)"
+  fi
+  unset local_ver
+fi
+
 # --- Dependency checks --------------------------------------------------------
 
 if ! command -v curl >/dev/null 2>&1; then
@@ -144,14 +174,18 @@ fi
 # --- Version check ------------------------------------------------------------
 
 check_version() {
+  local target_version="${1:-}"
+  if [[ -z "$target_version" ]]; then
+    return 0
+  fi
   if command -v "$BIN_NAME" >/dev/null 2>&1; then
     local installed_version
     installed_version=$("$BIN_NAME" --version 2>/dev/null | awk '{print $NF}' || echo "")
     installed_version="${installed_version#v}"
 
-    if [[ -n "$installed_version" && -n "${specific_version:-}" ]]; then
-      if [[ "$installed_version" == "$specific_version" ]]; then
-        printf "${MUTED}Version ${NC}%s${MUTED} already installed${NC}\n" "$specific_version"
+    if [[ -n "$installed_version" ]]; then
+      if [[ "$installed_version" == "$target_version" ]]; then
+        printf "${MUTED}Version ${NC}%s${MUTED} already installed${NC}\n" "$target_version"
         exit 0
       else
         printf "${MUTED}Installed version: ${NC}%s${MUTED}. Upgrading...${NC}\n" "$installed_version"
@@ -224,7 +258,8 @@ download_with_progress() {
   trap "trap - RETURN; rm -rf \"$fifo_dir\"; printf '\033[?25h' >&4; exec 4>&-" RETURN
 
   (
-    curl --trace-ascii "$tracefile" -s -L "${extra_args[@]}" -o "$output" "$url"
+    trap '' PIPE
+    curl --trace-ascii "$tracefile" -f -s -L --connect-timeout 30 --max-time 300 "${extra_args[@]}" -o "$output" "$url"
   ) &
   local curl_pid=$!
 
@@ -368,6 +403,8 @@ if [[ -z "$binary_path" ]]; then
   json=""
 
   if [[ -n "$requested_version" ]]; then
+    # Check if this version is already installed before making API calls
+    check_version "${requested_version#v}"
     printf "${MUTED}Installing ${NC}%s ${MUTED}version: ${NC}%s\n" "$BIN_NAME" "$requested_version"
     api_url="https://api.github.com/repos/$REPO/releases/tags/$requested_version"
     if json=$(github_api "$api_url" 2>/dev/null); then
@@ -402,6 +439,11 @@ if [[ -z "$binary_path" ]]; then
     err "could not determine version from release response"
   fi
 
+  # For "latest" requests, check if already installed after resolving the version
+  if [[ -z "$requested_version" ]]; then
+    check_version "$specific_version"
+  fi
+
   # Extract asset URL and asset ID for the target (exclude .sha256 checksum files)
   if command -v jq >/dev/null 2>&1; then
     asset_url=$(printf '%s' "$json" \
@@ -422,6 +464,7 @@ if [[ -z "$binary_path" ]]; then
     asset_id=$(printf '%s' "$json" | awk -v target="$target" '
       /"id"[[:space:]]*:/ {
         line=$0
+        sub(/.*"id"[[:space:]]*:[[:space:]]*/, "", line)
         gsub(/[^0-9]/, "", line)
         if (line != "") last_id=line
       }
@@ -488,22 +531,46 @@ download_and_install() {
         -H "Accept: application/octet-stream" \
         -H "Authorization: Bearer $GITHUB_TOKEN" \
         -H "X-GitHub-Api-Version: 2022-11-28" \
-        -L "$asset_api_url" -o "$tmpdir/$asset_name"
+        "$asset_api_url" -o "$tmpdir/$asset_name"
     else
       curl -fsSL \
         -H "Accept: application/octet-stream" \
         -H "Authorization: Bearer $GITHUB_TOKEN" \
         -H "X-GitHub-Api-Version: 2022-11-28" \
-        -L "$asset_api_url" -o "$tmpdir/$asset_name"
+        "$asset_api_url" -o "$tmpdir/$asset_name"
     fi
   else
     # Public download via browser_download_url
     if [[ -t 2 ]] && download_with_progress_supported; then
       download_with_progress "$asset_url" "$tmpdir/$asset_name" || \
-      curl -# -fSL -L "$asset_url" -o "$tmpdir/$asset_name"
+      curl -# -fSL "$asset_url" -o "$tmpdir/$asset_name"
     else
-      curl -fsSL -L "$asset_url" -o "$tmpdir/$asset_name"
+      curl -fsSL "$asset_url" -o "$tmpdir/$asset_name"
     fi
+  fi
+
+  # Verify SHA256 checksum if available
+  local checksum_url="${asset_url}.sha256"
+  local checksum_file="$tmpdir/${asset_name}.sha256"
+  if curl -fsSL ${GITHUB_TOKEN:+-H "Authorization: Bearer $GITHUB_TOKEN"} -o "$checksum_file" "$checksum_url" 2>/dev/null; then
+    local expected_hash
+    expected_hash=$(awk '{print $1}' "$checksum_file")
+    local actual_hash=""
+    if command -v sha256sum >/dev/null 2>&1; then
+      actual_hash=$(sha256sum "$tmpdir/$asset_name" | awk '{print $1}')
+    elif command -v shasum >/dev/null 2>&1; then
+      actual_hash=$(shasum -a 256 "$tmpdir/$asset_name" | awk '{print $1}')
+    fi
+    if [[ -n "$actual_hash" ]]; then
+      if [[ "$actual_hash" != "$expected_hash" ]]; then
+        err "checksum verification failed (expected: $expected_hash, got: $actual_hash)"
+      fi
+      print_message muted "Checksum verified"
+    else
+      print_message warning "No sha256sum or shasum available, skipping checksum verification"
+    fi
+  else
+    print_message warning "No checksum file available, skipping verification"
   fi
 
   # Extract the archive
@@ -512,7 +579,11 @@ download_and_install() {
       if ! command -v tar >/dev/null 2>&1; then
         err "tar is required to extract $asset_name"
       fi
-      tar -xzf "$tmpdir/$asset_name" -C "$tmpdir"
+      # Check for path traversal entries before extracting
+      if tar -tzf "$tmpdir/$asset_name" | grep -qE '(^|/)\.\.(/|$)'; then
+        err "archive contains path traversal entries"
+      fi
+      tar --no-same-owner -xzf "$tmpdir/$asset_name" -C "$tmpdir"
       ;;
     *.zip)
       if ! command -v unzip >/dev/null 2>&1; then
@@ -531,11 +602,16 @@ download_and_install() {
   if [[ -f "$tmpdir/$BIN_NAME" ]]; then
     bin_file="$tmpdir/$BIN_NAME"
   else
-    bin_file=$(find "$tmpdir" -type f \( -name "$BIN_NAME" -o -name "${BIN_NAME}.exe" \) | head -n 1)
+    bin_file=$(find "$tmpdir" -maxdepth 3 -type f \( -name "$BIN_NAME" -o -name "${BIN_NAME}.exe" \) | head -n 1)
   fi
 
   if [[ -z "${bin_file:-}" || ! -f "$bin_file" ]]; then
     err "binary '$BIN_NAME' not found in downloaded asset"
+  fi
+
+  # Reject symlinks to prevent symlink attacks
+  if [[ -L "$bin_file" ]]; then
+    err "binary is a symlink, refusing to install"
   fi
 
   # Install the binary
@@ -579,7 +655,6 @@ install_from_binary() {
 if [[ -n "$binary_path" ]]; then
   install_from_binary
 else
-  check_version
   download_and_install
 fi
 
@@ -611,15 +686,24 @@ if [[ "$no_modify_path" != "true" ]]; then
   XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
   current_shell=$(basename "${SHELL:-sh}")
 
+  # Only include XDG paths when XDG_CONFIG_HOME differs from the default
+  _xdg_extra=""
+  if [[ "$XDG_CONFIG_HOME" != "$HOME/.config" ]]; then
+    _xdg_extra=true
+  fi
+
   case "$current_shell" in
     fish)
-      config_files="$HOME/.config/fish/config.fish $XDG_CONFIG_HOME/fish/config.fish"
+      config_files="$HOME/.config/fish/config.fish"
+      [[ -n "$_xdg_extra" ]] && config_files="$config_files $XDG_CONFIG_HOME/fish/config.fish"
       ;;
     zsh)
-      config_files="$HOME/.zshrc $HOME/.zshenv $XDG_CONFIG_HOME/zsh/.zshrc $XDG_CONFIG_HOME/zsh/.zshenv"
+      config_files="$HOME/.zshrc $HOME/.zshenv"
+      [[ -n "$_xdg_extra" ]] && config_files="$config_files $XDG_CONFIG_HOME/zsh/.zshrc $XDG_CONFIG_HOME/zsh/.zshenv"
       ;;
     bash)
-      config_files="$HOME/.bashrc $HOME/.bash_profile $HOME/.profile $XDG_CONFIG_HOME/bash/.bashrc $XDG_CONFIG_HOME/bash/.bash_profile"
+      config_files="$HOME/.bashrc $HOME/.bash_profile $HOME/.profile"
+      [[ -n "$_xdg_extra" ]] && config_files="$config_files $XDG_CONFIG_HOME/bash/.bashrc $XDG_CONFIG_HOME/bash/.bash_profile"
       ;;
     ash)
       config_files="$HOME/.ashrc $HOME/.profile /etc/profile"
@@ -631,6 +715,7 @@ if [[ "$no_modify_path" != "true" ]]; then
       config_files="$HOME/.bashrc $HOME/.bash_profile $HOME/.profile"
       ;;
   esac
+  unset _xdg_extra
 
   config_file=""
   # shellcheck disable=SC2086  # Intentional word-splitting for file list
@@ -675,18 +760,22 @@ fi
 
 # --- Post-install branding ----------------------------------------------------
 
-printf "\n"
-printf "${MUTED} ▀  ▀  ▀  ${NC}                             \n"
-printf "${MUTED} █  █  █  ${NC}█▀▀ █▀▀█ █▀▀▄ █▀▀ █▀▀█ █ █▀▀█\n"
-printf "${MUTED} █  █  █  ${NC}█   █  █ █  █ ▀▀█ █  █ █ █▀▀▀\n"
-printf "${MUTED} ▀  ▀  ▀  ${NC}▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀ ▀▀▀▀ ▀ ▀▀▀▀\n"
-printf "\n"
-printf "\n"
-printf "${MUTED}To start the console:${NC}\n"
-printf "\n"
-printf "  iii-console                   ${MUTED}# Start with defaults${NC}\n"
-printf "  iii-console --engine-host ip  ${MUTED}# Connect to remote engine${NC}\n"
-printf "\n"
-printf "${MUTED}Installed to: ${NC}%s/%s\n" "$INSTALL_DIR" "$BIN_NAME"
-printf "\n"
-printf "\n"
+if [[ -x "$INSTALL_DIR/$BIN_NAME" ]]; then
+  printf "\n"
+  printf "${MUTED} ▀  ▀  ▀  ${NC}                             \n"
+  printf "${MUTED} █  █  █  ${NC}█▀▀ █▀▀█ █▀▀▄ █▀▀ █▀▀█ █ █▀▀█\n"
+  printf "${MUTED} █  █  █  ${NC}█   █  █ █  █ ▀▀█ █  █ █ █▀▀▀\n"
+  printf "${MUTED} ▀  ▀  ▀  ${NC}▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀ ▀▀▀▀ ▀ ▀▀▀▀\n"
+  printf "\n"
+  printf "\n"
+  printf "${MUTED}To start the console:${NC}\n"
+  printf "\n"
+  printf "  iii-console                   ${MUTED}# Start with defaults${NC}\n"
+  printf "  iii-console --engine-host ip  ${MUTED}# Connect to remote engine${NC}\n"
+  printf "\n"
+  printf "${MUTED}Installed to: ${NC}%s/%s\n" "$INSTALL_DIR" "$BIN_NAME"
+  printf "\n"
+  printf "\n"
+else
+  err "installation failed: binary not executable at $INSTALL_DIR/$BIN_NAME"
+fi
