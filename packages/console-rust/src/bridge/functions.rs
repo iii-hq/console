@@ -577,6 +577,163 @@ async fn handle_flow_config_save(bridge: &III, input: Value) -> Value {
     }
 }
 
+async fn handle_queues_list(bridge: &III) -> Value {
+    match bridge
+        .call_with_timeout("list_queues", json!({}), Duration::from_secs(5))
+        .await
+    {
+        Ok(data) => success_response(data),
+        Err(err) => error_response(err),
+    }
+}
+
+async fn handle_queue_stats(bridge: &III, input: Value) -> Value {
+    let topic = input
+        .get("body")
+        .and_then(|b| b.get("queue"))
+        .and_then(|v| v.as_str())
+        .or_else(|| input.get("queue").and_then(|v| v.as_str()));
+
+    match topic {
+        Some(topic) => {
+            let stats_input = json!({ "topic": topic });
+            match bridge
+                .call_with_timeout("stats", stats_input, Duration::from_secs(5))
+                .await
+            {
+                Ok(data) => success_response(data),
+                Err(err) => error_response(err),
+            }
+        }
+        None => error_response(iii_sdk::IIIError::Handler(
+            "Missing queue name in request".to_string(),
+        )),
+    }
+}
+
+async fn handle_queue_jobs(bridge: &III, input: Value) -> Value {
+    let body = input.get("body").unwrap_or(&input);
+
+    let topic = body
+        .get("queue")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let state = body
+        .get("state")
+        .and_then(|v| v.as_str())
+        .unwrap_or("waiting");
+    let offset = body
+        .get("offset")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+    let limit = body
+        .get("limit")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(50)
+        .min(500);
+
+    if topic.is_empty() {
+        return error_response(iii_sdk::IIIError::Handler(
+            "Missing queue name in request".to_string(),
+        ));
+    }
+
+    let jobs_input = json!({
+        "topic": topic,
+        "state": state,
+        "offset": offset,
+        "limit": limit,
+    });
+
+    match bridge
+        .call_with_timeout("jobs", jobs_input, Duration::from_secs(5))
+        .await
+    {
+        Ok(data) => success_response(data),
+        Err(err) => error_response(err),
+    }
+}
+
+async fn handle_queue_job(bridge: &III, input: Value) -> Value {
+    let body = input.get("body").unwrap_or(&input);
+
+    let topic = body
+        .get("queue")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let job_id = body
+        .get("job_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+
+    if topic.is_empty() || job_id.is_empty() {
+        return error_response(iii_sdk::IIIError::Handler(
+            "Missing queue or job_id in request".to_string(),
+        ));
+    }
+
+    let job_input = json!({
+        "topic": topic,
+        "job_id": job_id,
+    });
+
+    match bridge
+        .call_with_timeout("job", job_input, Duration::from_secs(5))
+        .await
+    {
+        Ok(data) => success_response(data),
+        Err(err) => error_response(err),
+    }
+}
+
+async fn handle_queue_redrive(bridge: &III, input: Value) -> Value {
+    let topic = input
+        .get("body")
+        .and_then(|b| b.get("queue"))
+        .and_then(|v| v.as_str())
+        .or_else(|| input.get("queue").and_then(|v| v.as_str()));
+
+    match topic {
+        Some(topic) => {
+            let redrive_input = json!({ "topic": topic });
+            match bridge
+                .call_with_timeout("redrive_dlq", redrive_input, Duration::from_secs(10))
+                .await
+            {
+                Ok(data) => success_response(data),
+                Err(err) => error_response(err),
+            }
+        }
+        None => error_response(iii_sdk::IIIError::Handler(
+            "Missing queue name in request".to_string(),
+        )),
+    }
+}
+
+async fn handle_queue_dlq_count(bridge: &III, input: Value) -> Value {
+    let topic = input
+        .get("body")
+        .and_then(|b| b.get("queue"))
+        .and_then(|v| v.as_str())
+        .or_else(|| input.get("queue").and_then(|v| v.as_str()));
+
+    match topic {
+        Some(topic) => {
+            let count_input = json!({ "topic": topic });
+            match bridge
+                .call_with_timeout("dlq_count", count_input, Duration::from_secs(5))
+                .await
+            {
+                Ok(data) => success_response(data),
+                Err(err) => error_response(err),
+            }
+        }
+        None => error_response(iii_sdk::IIIError::Handler(
+            "Missing queue name in request".to_string(),
+        )),
+    }
+}
+
 pub fn register_functions(bridge: &III) {
     let b = bridge.clone();
     bridge.register_function("engine.console.health", move |_input| {
@@ -708,5 +865,41 @@ pub fn register_functions(bridge: &III) {
     bridge.register_function("engine.console.flow_config_save", move |input| {
         let bridge = b.clone();
         async move { Ok(handle_flow_config_save(&bridge, input).await) }
+    });
+
+    let b = bridge.clone();
+    bridge.register_function("engine.console.queues_list", move |_input| {
+        let bridge = b.clone();
+        async move { Ok(handle_queues_list(&bridge).await) }
+    });
+
+    let b = bridge.clone();
+    bridge.register_function("engine.console.queue_stats", move |input| {
+        let bridge = b.clone();
+        async move { Ok(handle_queue_stats(&bridge, input).await) }
+    });
+
+    let b = bridge.clone();
+    bridge.register_function("engine.console.queue_jobs", move |input| {
+        let bridge = b.clone();
+        async move { Ok(handle_queue_jobs(&bridge, input).await) }
+    });
+
+    let b = bridge.clone();
+    bridge.register_function("engine.console.queue_job", move |input| {
+        let bridge = b.clone();
+        async move { Ok(handle_queue_job(&bridge, input).await) }
+    });
+
+    let b = bridge.clone();
+    bridge.register_function("engine.console.queue_redrive", move |input| {
+        let bridge = b.clone();
+        async move { Ok(handle_queue_redrive(&bridge, input).await) }
+    });
+
+    let b = bridge.clone();
+    bridge.register_function("engine.console.queue_dlq_count", move |input| {
+        let bridge = b.clone();
+        async move { Ok(handle_queue_dlq_count(&bridge, input).await) }
     });
 }

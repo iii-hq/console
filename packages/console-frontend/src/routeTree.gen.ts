@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TracesRouteImport } from './routes/traces'
 import { Route as StreamsRouteImport } from './routes/streams'
 import { Route as StatesRouteImport } from './routes/states'
+import { Route as QueuesRouteImport } from './routes/queues'
 import { Route as LogsRouteImport } from './routes/logs'
 import { Route as HandlersRouteImport } from './routes/handlers'
 import { Route as FlowRouteImport } from './routes/flow'
@@ -31,6 +32,11 @@ const StreamsRoute = StreamsRouteImport.update({
 const StatesRoute = StatesRouteImport.update({
   id: '/states',
   path: '/states',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QueuesRoute = QueuesRouteImport.update({
+  id: '/queues',
+  path: '/queues',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LogsRoute = LogsRouteImport.update({
@@ -65,6 +71,7 @@ export interface FileRoutesByFullPath {
   '/flow': typeof FlowRoute
   '/handlers': typeof HandlersRoute
   '/logs': typeof LogsRoute
+  '/queues': typeof QueuesRoute
   '/states': typeof StatesRoute
   '/streams': typeof StreamsRoute
   '/traces': typeof TracesRoute
@@ -75,6 +82,7 @@ export interface FileRoutesByTo {
   '/flow': typeof FlowRoute
   '/handlers': typeof HandlersRoute
   '/logs': typeof LogsRoute
+  '/queues': typeof QueuesRoute
   '/states': typeof StatesRoute
   '/streams': typeof StreamsRoute
   '/traces': typeof TracesRoute
@@ -86,6 +94,7 @@ export interface FileRoutesById {
   '/flow': typeof FlowRoute
   '/handlers': typeof HandlersRoute
   '/logs': typeof LogsRoute
+  '/queues': typeof QueuesRoute
   '/states': typeof StatesRoute
   '/streams': typeof StreamsRoute
   '/traces': typeof TracesRoute
@@ -98,6 +107,7 @@ export interface FileRouteTypes {
     | '/flow'
     | '/handlers'
     | '/logs'
+    | '/queues'
     | '/states'
     | '/streams'
     | '/traces'
@@ -108,6 +118,7 @@ export interface FileRouteTypes {
     | '/flow'
     | '/handlers'
     | '/logs'
+    | '/queues'
     | '/states'
     | '/streams'
     | '/traces'
@@ -118,6 +129,7 @@ export interface FileRouteTypes {
     | '/flow'
     | '/handlers'
     | '/logs'
+    | '/queues'
     | '/states'
     | '/streams'
     | '/traces'
@@ -129,6 +141,7 @@ export interface RootRouteChildren {
   FlowRoute: typeof FlowRoute
   HandlersRoute: typeof HandlersRoute
   LogsRoute: typeof LogsRoute
+  QueuesRoute: typeof QueuesRoute
   StatesRoute: typeof StatesRoute
   StreamsRoute: typeof StreamsRoute
   TracesRoute: typeof TracesRoute
@@ -155,6 +168,13 @@ declare module '@tanstack/react-router' {
       path: '/states'
       fullPath: '/states'
       preLoaderRoute: typeof StatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/queues': {
+      id: '/queues'
+      path: '/queues'
+      fullPath: '/queues'
+      preLoaderRoute: typeof QueuesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/logs': {
@@ -201,6 +221,7 @@ const rootRouteChildren: RootRouteChildren = {
   FlowRoute: FlowRoute,
   HandlersRoute: HandlersRoute,
   LogsRoute: LogsRoute,
+  QueuesRoute: QueuesRoute,
   StatesRoute: StatesRoute,
   StreamsRoute: StreamsRoute,
   TracesRoute: TracesRoute,
