@@ -47,6 +47,7 @@ else
   target="$arch-$os"
 fi
 
+# NB: intentionally unquoted in curl calls to allow word-splitting into separate -H arguments
 api_headers="-H Accept:application/vnd.github+json -H X-GitHub-Api-Version:2022-11-28"
 github_api() {
   if [ -n "${GITHUB_TOKEN:-}" ]; then
@@ -75,10 +76,10 @@ fi
 
 if command -v jq >/dev/null 2>&1; then
   asset_url=$(printf '%s' "$json" \
-    | jq -r --arg target "$target" '.assets[] | select(.name | test($target)) | .browser_download_url' \
+    | jq -r --arg target "$target" '.assets[] | select(.name | contains($target)) | .browser_download_url' \
     | head -n 1)
   asset_id=$(printf '%s' "$json" \
-    | jq -r --arg target "$target" '.assets[] | select(.name | test($target)) | .id' \
+    | jq -r --arg target "$target" '.assets[] | select(.name | contains($target)) | .id' \
     | head -n 1)
 else
   asset_url=$(printf '%s' "$json" \

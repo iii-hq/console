@@ -48,7 +48,7 @@ jobs:
         with:
           name: slack-notification-data
           path: slack-data/
-          retention-days: 1
+          retention-days: 3
 
   detect-prerelease:
     name: Detect Pre-release
@@ -114,6 +114,7 @@ jobs:
 
       - name: Update Slack - Frontend Built
         if: success()
+        continue-on-error: true
         uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
         with:
           method: chat.update
@@ -134,6 +135,7 @@ jobs:
 
       - name: Update Slack - Frontend Failed
         if: failure()
+        continue-on-error: true
         uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
         with:
           method: chat.update
@@ -181,6 +183,7 @@ jobs:
           generate_release_notes: true
 
       - name: Update Slack - Release Created
+        continue-on-error: true
         uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
         with:
           method: chat.update
@@ -275,6 +278,7 @@ jobs:
     name: Update Build Status
     needs: [notify-start, build-release]
     runs-on: ubuntu-latest
+    permissions: {}
     if: always()
 
     steps:
@@ -321,6 +325,8 @@ jobs:
     steps:
       - name: Trigger Homebrew workflow
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        env:
+          RELEASE_VERSION: ${{ github.ref_name }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -330,7 +336,7 @@ jobs:
               workflow_id: 'publish-homebrew.yml',
               ref: 'main',
               inputs: {
-                version: '${{ github.ref_name }}',
+                version: process.env.RELEASE_VERSION,
                 dry_run: 'false'
               }
             });
