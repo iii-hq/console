@@ -1,22 +1,18 @@
 import { ChevronRight } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { VisualizationSpan, WaterfallData } from '@/lib/traceTransform'
+import { formatDuration } from '@/lib/traceUtils'
 
 interface WaterfallChartProps {
   data: WaterfallData
   onSpanClick: (span: VisualizationSpan) => void
+  selectedSpanId?: string | null
 }
 
 interface SpanNode extends VisualizationSpan {
   children: SpanNode[]
   isExpanded: boolean
   isCriticalPath: boolean
-}
-
-function formatDuration(ms: number): string {
-  if (ms < 1) return `${(ms * 1000).toFixed(0)}µs`
-  if (ms < 1000) return `${ms.toFixed(2)}ms`
-  return `${(ms / 1000).toFixed(2)}s`
 }
 
 function buildSpanTree(spans: VisualizationSpan[]): SpanNode[] {
@@ -92,7 +88,7 @@ function flattenTree(nodes: SpanNode[], expandedIds: Set<string>): SpanNode[] {
   return result
 }
 
-export function WaterfallChart({ data, onSpanClick }: WaterfallChartProps) {
+export function WaterfallChart({ data, onSpanClick, selectedSpanId }: WaterfallChartProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [showCriticalPath, setShowCriticalPath] = useState(false)
   const [hoveredSpanId, setHoveredSpanId] = useState<string | null>(null)
@@ -197,6 +193,7 @@ export function WaterfallChart({ data, onSpanClick }: WaterfallChartProps) {
             const hasChildren = span.children.length > 0
             const isExpanded = expandedIds.has(span.span_id)
             const isCritical = showCriticalPath && span.isCriticalPath
+            const isSelected = selectedSpanId === span.span_id
             const isHovered = hoveredSpanId === span.span_id
 
             const statusColors = {
@@ -221,8 +218,8 @@ export function WaterfallChart({ data, onSpanClick }: WaterfallChartProps) {
                 key={span.span_id}
                 className={`
                   grid grid-cols-[300px_1fr] gap-4 px-3 py-1 items-center transition-colors cursor-pointer
-                  ${isHovered ? 'bg-[#1D1D1D]' : 'hover:bg-[#1D1D1D]/50'}
-                  ${isCritical ? 'bg-orange-500/5' : ''}
+                  ${isSelected ? 'bg-[#F3F724]/[0.06] border-l-2 border-l-[#F3F724]' : isHovered ? 'bg-[#1D1D1D]' : 'hover:bg-[#1D1D1D]/50'}
+                  ${isCritical && !isSelected ? 'bg-orange-500/5' : ''}
                 `}
                 onClick={() => onSpanClick(span)}
                 onMouseEnter={() => setHoveredSpanId(span.span_id)}
@@ -258,7 +255,7 @@ export function WaterfallChart({ data, onSpanClick }: WaterfallChartProps) {
                   />
 
                   <span
-                    className="text-[13px] font-medium truncate text-[#F4F4F4]"
+                    className={`text-[13px] font-medium truncate ${isSelected ? 'text-[#F3F724]' : 'text-[#F4F4F4]'}`}
                     title={span.name}
                   >
                     {span.name}
@@ -273,7 +270,7 @@ export function WaterfallChart({ data, onSpanClick }: WaterfallChartProps) {
                   <div
                     className={`
                       absolute h-4 top-1 rounded-[3px] min-w-[3px] transition-all duration-150
-                      ${isHovered ? 'scale-y-[1.2] shadow-[0_0_0_2px_rgba(243,247,36,0.3)]' : ''}
+                      ${isSelected ? 'scale-y-[1.3] shadow-[0_0_6px_rgba(243,247,36,0.4)]' : isHovered ? 'scale-y-[1.2] shadow-[0_0_0_2px_rgba(243,247,36,0.3)]' : ''}
                     `}
                     style={{
                       ...barStyle,

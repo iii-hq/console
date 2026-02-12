@@ -33,6 +33,7 @@ import {
   type VisualizationSpan,
   type WaterfallData,
 } from '@/lib/traceTransform'
+import { formatDuration } from '@/lib/traceUtils'
 
 export const Route = createFileRoute('/traces')({
   component: TracesPage,
@@ -40,9 +41,7 @@ export const Route = createFileRoute('/traces')({
 
 interface TraceGroup {
   traceId: string
-  trace_id: string
   rootOperation: string
-  root_operation: string
   status: 'ok' | 'error' | 'pending'
   startTime: number
   endTime?: number
@@ -70,12 +69,7 @@ function formatTime(timestamp: number): string {
   })
 }
 
-function formatDuration(ms: number | undefined): string {
-  if (!ms) return '-'
-  if (ms < 1) return '<1ms'
-  if (ms < 1000) return `${Math.round(ms)}ms`
-  return `${(ms / 1000).toFixed(2)}s`
-}
+const DEFAULT_TRACE_LIMIT = 10_000
 
 function TracesPage() {
   const [searchQuery, setSearchQuery] = useState('')
@@ -83,7 +77,7 @@ function TracesPage() {
   const [showSystem, setShowSystem] = useState(false)
   const [traceGroups, setTraceGroups] = useState<TraceGroup[]>([])
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null)
-  const [isConnected] = useState(true)
+  const isConnected = true
   const [hasOtelConfigured, setHasOtelConfigured] = useState(false)
 
   const [activeView, setActiveView] = useState<ViewType>('waterfall')
@@ -97,7 +91,7 @@ function TracesPage() {
     updateFilter,
     resetFilters,
     getActiveFilterCount,
-    getApiParams,
+    getFilterOnlyParams,
     validationWarnings,
     clearValidationWarnings,
   } = useTraceFilters()
@@ -107,10 +101,11 @@ function TracesPage() {
   const loadTraces = useCallback(async () => {
     setIsLoading(true)
     try {
-      const params = getApiParams()
+      const params = getFilterOnlyParams()
       const data = await fetchTraces({
         ...params,
-        limit: params.limit || 10000,
+        offset: 0,
+        limit: DEFAULT_TRACE_LIMIT,
         include_internal: showSystem,
       })
 
@@ -123,9 +118,7 @@ function TracesPage() {
 
           return {
             traceId: span.trace_id,
-            trace_id: span.trace_id,
             rootOperation: span.name,
-            root_operation: span.name,
             status: span.status.toLowerCase() === 'error' ? 'error' : 'ok',
             startTime,
             endTime,
@@ -150,7 +143,7 @@ function TracesPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [getApiParams, showSystem])
+  }, [getFilterOnlyParams, showSystem])
 
   const loadTraceSpans = useCallback(async (traceId: string) => {
     setIsLoadingSpans(true)
@@ -396,33 +389,31 @@ function TracesPage() {
         </div>
 
         {selectedTrace && (
-          <div className="w-[500px] border-l border-border bg-dark-gray/20 flex flex-col h-full overflow-hidden">
+          <div className="w-[520px] border-l border-border bg-[#0A0A0A] flex flex-col h-full overflow-hidden flex-shrink-0 animate-trace-panel-in">
             {isLoadingSpans && (
               <div className="flex-1 flex flex-col items-center justify-center p-8">
-                <RefreshCw className="w-8 h-8 text-yellow animate-spin mb-4" />
-                <div className="text-sm font-medium mb-2">Loading trace details...</div>
-                <div className="text-xs text-muted">
-                  Trace ID: {selectedTrace.traceId.slice(0, 8)}
+                <RefreshCw className="w-6 h-6 text-yellow animate-spin mb-3" />
+                <div className="text-xs font-medium mb-1">Loading trace...</div>
+                <div className="text-[10px] text-muted font-mono">
+                  {selectedTrace.traceId.slice(0, 12)}
                 </div>
               </div>
             )}
 
             {!isLoadingSpans && spansError && (
               <div className="flex-1 flex flex-col items-center justify-center p-8">
-                <div className="w-12 h-12 mb-4 rounded-xl bg-dark-gray border border-border flex items-center justify-center">
-                  <AlertCircle className="w-6 h-6 text-error" />
+                <div className="w-10 h-10 mb-3 rounded-lg bg-dark-gray border border-border flex items-center justify-center">
+                  <AlertCircle className="w-5 h-5 text-error" />
                 </div>
-                <div className="text-sm font-medium mb-2 text-error">
-                  Failed to load trace details
-                </div>
-                <div className="text-xs text-muted text-center mb-4 max-w-xs">{spansError}</div>
+                <div className="text-xs font-medium mb-1 text-error">Failed to load trace</div>
+                <div className="text-[10px] text-muted text-center mb-3 max-w-xs">{spansError}</div>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => loadTraceSpans(selectedTrace.traceId)}
-                  className="text-xs"
+                  className="text-[10px] h-6"
                 >
-                  <RefreshCw className="w-3 h-3 mr-1.5" />
+                  <RefreshCw className="w-3 h-3 mr-1" />
                   Retry
                 </Button>
               </div>
@@ -430,15 +421,26 @@ function TracesPage() {
 
             {!isLoadingSpans && !spansError && waterfallData && (
               <>
-                <TraceHeader data={waterfallData} traceId={selectedTrace.traceId} />
+                <TraceHeader
+                  data={waterfallData}
+                  traceId={selectedTrace.traceId}
+                  onClose={() => {
+                    setSelectedTraceId(null)
+                    setSelectedSpan(null)
+                  }}
+                />
 
-                <div className="border-b border-border p-4">
+                <div className="border-b border-[#1D1D1D] px-4 py-2.5">
                   <ViewSwitcher currentView={activeView} onViewChange={setActiveView} />
                 </div>
 
                 <div className="flex-1 overflow-auto">
                   {activeView === 'waterfall' && (
-                    <WaterfallChart data={waterfallData} onSpanClick={setSelectedSpan} />
+                    <WaterfallChart
+                      data={waterfallData}
+                      onSpanClick={setSelectedSpan}
+                      selectedSpanId={selectedSpan?.span_id}
+                    />
                   )}
 
                   {activeView === 'flamegraph' && (
@@ -450,16 +452,26 @@ function TracesPage() {
                   )}
                 </div>
 
-                <div className="border-t border-border">
+                <div className="border-t border-[#1D1D1D] flex-shrink-0">
                   <ServiceBreakdown data={waterfallData} />
                 </div>
               </>
             )}
           </div>
         )}
-      </div>
 
-      <SpanPanel span={selectedSpan} onClose={() => setSelectedSpan(null)} />
+        {selectedSpan && waterfallData && (
+          <div className="w-[400px] border-l border-[#1D1D1D] bg-[#0A0A0A] flex-shrink-0 h-full overflow-hidden">
+            <SpanPanel
+              key={selectedSpan.span_id}
+              span={selectedSpan}
+              traceData={waterfallData}
+              onClose={() => setSelectedSpan(null)}
+              onNavigateToSpan={setSelectedSpan}
+            />
+          </div>
+        )}
+      </div>
     </div>
   )
 }

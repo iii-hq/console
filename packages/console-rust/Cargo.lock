@@ -543,7 +543,7 @@ dependencies = [
 
 [[package]]
 name = "iii-console"
-version = "0.1.0"
+version = "0.1.2-alpha"
 dependencies = [
  "anyhow",
  "axum",
@@ -561,9 +561,9 @@ dependencies = [
 
 [[package]]
 name = "iii-sdk"
-version = "0.0.2-beta.20260211133339"
+version = "0.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46565182a715e724642ea522bf15b25d57d44f8b7c6ad827660dfdf2cf76cdd6"
+checksum = "3c991b910776d82ab002bf4fce810c22f0c3ae324670be61d46053cbb0a8443c"
 dependencies = [
  "async-trait",
  "futures-util",

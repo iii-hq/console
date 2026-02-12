@@ -35,9 +35,9 @@ struct Args {
     #[arg(long, default_value = "49134")]
     bridge_port: u16,
 
-    /// Enable OpenTelemetry tracing, metrics, and logs export
-    #[arg(long, env = "OTEL_ENABLED")]
-    otel: bool,
+    /// Disable OpenTelemetry tracing, metrics, and logs export
+    #[arg(long, env = "OTEL_DISABLED")]
+    no_otel: bool,
 
     /// OpenTelemetry service name (default: iii-console)
     #[arg(long, env = "OTEL_SERVICE_NAME", default_value = "iii-console")]
@@ -96,8 +96,8 @@ async fn main() -> Result<()> {
     let bridge_url = format!("ws://{}:{}", args.engine_host, args.bridge_port);
     let bridge = iii_sdk::III::new(&bridge_url);
 
-    // Configure OpenTelemetry if enabled
-    if args.otel {
+    // Configure OpenTelemetry (enabled by default, use --no-otel to disable)
+    if !args.no_otel {
         info!("OpenTelemetry enabled (service: {})", args.otel_service_name);
         bridge.set_otel_config(iii_sdk::OtelConfig {
             enabled: Some(true),
@@ -106,6 +106,8 @@ async fn main() -> Result<()> {
             engine_ws_url: Some(bridge_url.clone()),
             ..Default::default()
         });
+    } else {
+        info!("OpenTelemetry disabled");
     }
 
     // Register ALL functions and triggers BEFORE connecting
