@@ -91,7 +91,6 @@ ENVIRONMENT VARIABLES:
     REPO            GitHub repository          (default: iii-hq/console)
     BIN_NAME        Binary name                (default: iii-console)
     INSTALL_DIR     Installation directory      (default: \$HOME/.local/bin)
-    GITHUB_TOKEN    GitHub token for private repos or rate limits
     TARGET          Override platform target    (e.g. aarch64-apple-darwin)
     VERSION         Version to install          (same as -v/--version)
 
@@ -107,9 +106,6 @@ EXAMPLES:
 
     # Install from local binary
     ./install.sh -b ./target/release/iii-console
-
-    # Use with GitHub token (private repos / rate limits)
-    GITHUB_TOKEN=ghp_xxx curl -fsSL https://raw.githubusercontent.com/iii-hq/console/main/install.sh | bash
 EOF
   exit 0
 }
@@ -301,11 +297,7 @@ download_with_progress() {
 api_headers=(-H "Accept:application/vnd.github+json" -H "X-GitHub-Api-Version:2022-11-28")
 
 github_api() {
-  if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-    curl -fsSL "${api_headers[@]}" -H "Authorization: Bearer $GITHUB_TOKEN" "$1"
-  else
-    curl -fsSL "${api_headers[@]}" "$1"
-  fi
+  curl -fsSL "${api_headers[@]}" "$1"
 }
 
 # --- Variables set by platform detection / release fetching -------------------
@@ -313,7 +305,6 @@ github_api() {
 target=""
 specific_version=""
 asset_url=""
-asset_id=""
 
 # --- Platform detection & release fetching (skip if --binary) -----------------
 
@@ -444,15 +435,11 @@ if [[ -z "$binary_path" ]]; then
     check_version "$specific_version"
   fi
 
-  # Extract asset URL and asset ID for the target (exclude .sha256 checksum files)
+  # Extract asset URL for the target (exclude .sha256 checksum files)
   if command -v jq >/dev/null 2>&1; then
     asset_url=$(printf '%s' "$json" \
       | jq -r --arg target "$target" \
         '.assets[] | select((.name | contains($target)) and (.name | test("\\.(tar\\.gz|tgz|zip)$"))) | .browser_download_url' \
-      | head -n 1)
-    asset_id=$(printf '%s' "$json" \
-      | jq -r --arg target "$target" \
-        '.assets[] | select((.name | contains($target)) and (.name | test("\\.(tar\\.gz|tgz|zip)$"))) | .id' \
       | head -n 1)
   else
     asset_url=$(printf '%s' "$json" \
@@ -461,22 +448,6 @@ if [[ -z "$binary_path" ]]; then
       | grep -F "$target" \
       | grep -E '\.(tar\.gz|tgz|zip)$' \
       | head -n 1)
-    asset_id=$(printf '%s' "$json" | awk -v target="$target" '
-      /"id"[[:space:]]*:/ {
-        line=$0
-        sub(/.*"id"[[:space:]]*:[[:space:]]*/, "", line)
-        gsub(/[^0-9]/, "", line)
-        if (line != "") last_id=line
-      }
-      /"name"[[:space:]]*:/ && $0 ~ target && /\.(tar\.gz|tgz|zip)"/ {
-        if (last_id != "") { print last_id; exit }
-      }
-    ')
-  fi
-
-  # Validate asset_id is numeric (fallback awk parsing may produce garbage)
-  if [[ -n "${asset_id:-}" && ! "$asset_id" =~ ^[0-9]+$ ]]; then
-    asset_id=""
   fi
 
   if [[ -z "$asset_url" ]]; then
@@ -518,35 +489,11 @@ download_and_install() {
   printf "\n${MUTED}Downloading ${NC}%s ${MUTED}v${NC}%s\n" "$BIN_NAME" "$specific_version"
 
   # Download the asset
-  if [[ -n "${GITHUB_TOKEN:-}" && -n "${asset_id:-}" && "$asset_id" != "null" ]]; then
-    # Authenticated download via asset API (required for private repos)
-    local asset_api_url="https://api.github.com/repos/$REPO/releases/assets/$asset_id"
-
-    if [[ -t 2 ]] && download_with_progress_supported; then
-      download_with_progress "$asset_api_url" "$tmpdir/$asset_name" \
-        -H "Accept: application/octet-stream" \
-        -H "Authorization: Bearer $GITHUB_TOKEN" \
-        -H "X-GitHub-Api-Version: 2022-11-28" || \
-      curl -# -fSL \
-        -H "Accept: application/octet-stream" \
-        -H "Authorization: Bearer $GITHUB_TOKEN" \
-        -H "X-GitHub-Api-Version: 2022-11-28" \
-        "$asset_api_url" -o "$tmpdir/$asset_name"
-    else
-      curl -fsSL \
-        -H "Accept: application/octet-stream" \
-        -H "Authorization: Bearer $GITHUB_TOKEN" \
-        -H "X-GitHub-Api-Version: 2022-11-28" \
-        "$asset_api_url" -o "$tmpdir/$asset_name"
-    fi
+  if [[ -t 2 ]] && download_with_progress_supported; then
+    download_with_progress "$asset_url" "$tmpdir/$asset_name" || \
+    curl -# -fSL "$asset_url" -o "$tmpdir/$asset_name"
   else
-    # Public download via browser_download_url
-    if [[ -t 2 ]] && download_with_progress_supported; then
-      download_with_progress "$asset_url" "$tmpdir/$asset_name" || \
-      curl -# -fSL "$asset_url" -o "$tmpdir/$asset_name"
-    else
-      curl -fsSL "$asset_url" -o "$tmpdir/$asset_name"
-    fi
+    curl -fsSL "$asset_url" -o "$tmpdir/$asset_name"
   fi
 
   # Verify SHA256 checksum if available
@@ -554,7 +501,7 @@ download_and_install() {
   local checksum_url
   checksum_url=$(echo "$asset_url" | sed -E 's/\.(tar\.gz|tgz|zip)$/.sha256/')
   local checksum_file="$tmpdir/${asset_name}.sha256"
-  if curl -fsSL ${GITHUB_TOKEN:+-H "Authorization: Bearer $GITHUB_TOKEN"} -o "$checksum_file" "$checksum_url" 2>/dev/null; then
+  if curl -fsSL -o "$checksum_file" "$checksum_url" 2>/dev/null; then
     local expected_hash
     expected_hash=$(awk '{print $1}' "$checksum_file")
     local actual_hash=""
