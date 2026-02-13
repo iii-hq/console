@@ -259,7 +259,7 @@ download_with_progress() {
 
   (
     trap '' PIPE
-    curl --trace-ascii "$tracefile" -f -s -L --connect-timeout 30 --max-time 300 "${extra_args[@]}" -o "$output" "$url"
+    curl --trace-ascii "$tracefile" -f -s -L --connect-timeout 30 --max-time 300 ${extra_args[@]+"${extra_args[@]}"} -o "$output" "$url"
   ) &
   local curl_pid=$!
 
