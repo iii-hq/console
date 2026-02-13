@@ -113,41 +113,44 @@ jobs:
           mkdir -p Formula
 
           cat <<BREWEOF > "$FORMULA_FILE"
-class IiiConsole < Formula
-  desc "Developer console for the iii engine"
-  homepage "https://github.com/iii-hq/console"
-  version "${VERSION_NUMBER}"
-  license "Apache-2.0"
+          class IiiConsole < Formula
+            desc "Developer console for the iii engine"
+            homepage "https://github.com/iii-hq/console"
+            version "${VERSION_NUMBER}"
+            license "Apache-2.0"
 
-  on_macos do
-    if Hardware::CPU.arm?
-      url "https://github.com/iii-hq/console/releases/download/${RELEASE_VERSION}/iii-console-aarch64-apple-darwin.tar.gz"
-      sha256 "${MACOS_ARM_SHA}"
-    else
-      url "https://github.com/iii-hq/console/releases/download/${RELEASE_VERSION}/iii-console-x86_64-apple-darwin.tar.gz"
-      sha256 "${MACOS_X86_SHA}"
-    end
-  end
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/iii-hq/console/releases/download/${RELEASE_VERSION}/iii-console-aarch64-apple-darwin.tar.gz"
+                sha256 "${MACOS_ARM_SHA}"
+              else
+                url "https://github.com/iii-hq/console/releases/download/${RELEASE_VERSION}/iii-console-x86_64-apple-darwin.tar.gz"
+                sha256 "${MACOS_X86_SHA}"
+              end
+            end
 
-  on_linux do
-    if Hardware::CPU.arm?
-      url "https://github.com/iii-hq/console/releases/download/${RELEASE_VERSION}/iii-console-aarch64-unknown-linux-gnu.tar.gz"
-      sha256 "${LINUX_ARM_SHA}"
-    else
-      url "https://github.com/iii-hq/console/releases/download/${RELEASE_VERSION}/iii-console-x86_64-unknown-linux-gnu.tar.gz"
-      sha256 "${LINUX_X86_SHA}"
-    end
-  end
+            on_linux do
+              if Hardware::CPU.arm?
+                url "https://github.com/iii-hq/console/releases/download/${RELEASE_VERSION}/iii-console-aarch64-unknown-linux-gnu.tar.gz"
+                sha256 "${LINUX_ARM_SHA}"
+              else
+                url "https://github.com/iii-hq/console/releases/download/${RELEASE_VERSION}/iii-console-x86_64-unknown-linux-gnu.tar.gz"
+                sha256 "${LINUX_X86_SHA}"
+              end
+            end
 
-  def install
-    bin.install "iii-console"
-  end
+            def install
+              bin.install "iii-console"
+            end
 
-  test do
-    system "\#{bin}/iii-console", "--version"
-  end
-end
-BREWEOF
+            test do
+              system "\#{bin}/iii-console", "--version"
+            end
+          end
+          BREWEOF
+
+          # Strip leading whitespace from generated formula
+          sed -i '' 's/^          //' "$FORMULA_FILE"
 
           echo "Formula updated:"
           cat "$FORMULA_FILE"
