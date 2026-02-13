@@ -764,11 +764,9 @@ fi
 
 if [[ -x "$INSTALL_DIR/$BIN_NAME" ]]; then
   printf "\n"
-  printf "${MUTED} ▀  ▀  ▀  ${NC}                             \n"
-  printf "${MUTED} █  █  █  ${NC}█▀▀ █▀▀█ █▀▀▄ █▀▀ █▀▀█ █ █▀▀█\n"
-  printf "${MUTED} █  █  █  ${NC}█   █  █ █  █ ▀▀█ █  █ █ █▀▀▀\n"
-  printf "${MUTED} ▀  ▀  ▀  ${NC}▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀ ▀▀▀▀ ▀ ▀▀▀▀\n"
-  printf "\n"
+  printf "${MUTED}▀ ▀ ▀  ${NC}█▀▀▀ █▀▀█ █▀▀▀▄ █▀▀▀ █▀▀█ █    █▀▀▀\n"
+  printf "${MUTED}█ █ █  ${NC}█    █  █ █   █ ▀▀▀█ █  █ █    █▀▀▀\n"
+  printf "${MUTED}▀ ▀ ▀  ${NC}▀▀▀▀ ▀▀▀▀ ▀   ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀\n"
   printf "\n"
   printf "${MUTED}To start the console:${NC}\n"
   printf "\n"
