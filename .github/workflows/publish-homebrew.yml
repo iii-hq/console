@@ -150,7 +150,7 @@ jobs:
           BREWEOF
 
           # Strip leading whitespace from generated formula
-          sed -i '' 's/^          //' "$FORMULA_FILE"
+          sed 's/^          //' "$FORMULA_FILE" > "$FORMULA_FILE.tmp" && mv "$FORMULA_FILE.tmp" "$FORMULA_FILE"
 
           echo "Formula updated:"
           cat "$FORMULA_FILE"
