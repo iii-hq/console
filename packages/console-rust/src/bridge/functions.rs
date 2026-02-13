@@ -17,6 +17,52 @@ fn validate_flow_id(id: &str) -> Result<String, Value> {
     Ok(id.to_string())
 }
 
+fn validate_queue_name(name: &str) -> Result<String, Value> {
+    if name.is_empty() {
+        return Err(error_response(iii_sdk::IIIError::Handler(
+            "Missing queue name in request".to_string(),
+        )));
+    }
+    if name.len() > 128 {
+        return Err(error_response(iii_sdk::IIIError::Handler(
+            format!("Queue name exceeds maximum length of 128 characters: {}", name),
+        )));
+    }
+    if !name.chars().all(|c| c.is_alphanumeric() || matches!(c, '-' | '_' | '.' | ':')) {
+        return Err(error_response(iii_sdk::IIIError::Handler(
+            format!("Invalid queue name: {}", name),
+        )));
+    }
+    Ok(name.to_string())
+}
+
+fn validate_job_id(id: &str) -> Result<String, Value> {
+    if id.is_empty() {
+        return Err(error_response(iii_sdk::IIIError::Handler(
+            "Missing job_id in request".to_string(),
+        )));
+    }
+    if id.len() > 256 {
+        return Err(error_response(iii_sdk::IIIError::Handler(
+            format!("job_id exceeds maximum length of 256 characters: {}", id),
+        )));
+    }
+    if !id.chars().all(|c| c.is_alphanumeric() || matches!(c, '-' | '_' | '.' | ':')) {
+        return Err(error_response(iii_sdk::IIIError::Handler(
+            format!("Invalid job_id: {}", id),
+        )));
+    }
+    Ok(id.to_string())
+}
+
+fn extract_queue_name(input: &Value) -> Option<&str> {
+    input
+        .get("body")
+        .and_then(|b| b.get("queue"))
+        .and_then(|v| v.as_str())
+        .or_else(|| input.get("queue").and_then(|v| v.as_str()))
+}
+
 /// Parse a boolean parameter from query_params, handling string "true"/"false" coercion.
 fn parse_bool_param(input: &Value, key: &str) -> bool {
     let params = input.get("query_params").unwrap_or(input);
@@ -588,40 +634,50 @@ async fn handle_queues_list(bridge: &III) -> Value {
 }
 
 async fn handle_queue_stats(bridge: &III, input: Value) -> Value {
-    let topic = input
-        .get("body")
-        .and_then(|b| b.get("queue"))
-        .and_then(|v| v.as_str())
-        .or_else(|| input.get("queue").and_then(|v| v.as_str()));
-
-    match topic {
-        Some(topic) => {
-            let stats_input = json!({ "topic": topic });
-            match bridge
-                .call_with_timeout("stats", stats_input, Duration::from_secs(5))
-                .await
-            {
-                Ok(data) => success_response(data),
-                Err(err) => error_response(err),
-            }
-        }
-        None => error_response(iii_sdk::IIIError::Handler(
+    let topic = match extract_queue_name(&input) {
+        Some(name) => match validate_queue_name(name) {
+            Ok(validated) => validated,
+            Err(err) => return err,
+        },
+        None => return error_response(iii_sdk::IIIError::Handler(
             "Missing queue name in request".to_string(),
         )),
+    };
+
+    let stats_input = json!({ "topic": topic });
+    match bridge
+        .call_with_timeout("stats", stats_input, Duration::from_secs(5))
+        .await
+    {
+        Ok(data) => success_response(data),
+        Err(err) => error_response(err),
     }
 }
 
 async fn handle_queue_jobs(bridge: &III, input: Value) -> Value {
     let body = input.get("body").unwrap_or(&input);
 
-    let topic = body
-        .get("queue")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let topic = match body.get("queue").and_then(|v| v.as_str()) {
+        Some(name) => match validate_queue_name(name) {
+            Ok(validated) => validated,
+            Err(err) => return err,
+        },
+        None => return error_response(iii_sdk::IIIError::Handler(
+            "Missing queue name in request".to_string(),
+        )),
+    };
+
     let state = body
         .get("state")
         .and_then(|v| v.as_str())
         .unwrap_or("waiting");
+    let valid_states = ["waiting", "active", "delayed", "dlq"];
+    if !valid_states.contains(&state) {
+        return error_response(iii_sdk::IIIError::Handler(
+            format!("Invalid state '{}'. Must be one of: {}", state, valid_states.join(", ")),
+        ));
+    }
+
     let offset = body
         .get("offset")
         .and_then(|v| v.as_u64())
@@ -631,12 +687,6 @@ async fn handle_queue_jobs(bridge: &III, input: Value) -> Value {
         .and_then(|v| v.as_u64())
         .unwrap_or(50)
         .min(500);
-
-    if topic.is_empty() {
-        return error_response(iii_sdk::IIIError::Handler(
-            "Missing queue name in request".to_string(),
-        ));
-    }
 
     let jobs_input = json!({
         "topic": topic,
@@ -657,20 +707,25 @@ async fn handle_queue_jobs(bridge: &III, input: Value) -> Value {
 async fn handle_queue_job(bridge: &III, input: Value) -> Value {
     let body = input.get("body").unwrap_or(&input);
 
-    let topic = body
-        .get("queue")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    let job_id = body
-        .get("job_id")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let topic = match body.get("queue").and_then(|v| v.as_str()) {
+        Some(name) => match validate_queue_name(name) {
+            Ok(validated) => validated,
+            Err(err) => return err,
+        },
+        None => return error_response(iii_sdk::IIIError::Handler(
+            "Missing queue name in request".to_string(),
+        )),
+    };
 
-    if topic.is_empty() || job_id.is_empty() {
-        return error_response(iii_sdk::IIIError::Handler(
-            "Missing queue or job_id in request".to_string(),
-        ));
-    }
+    let job_id = match body.get("job_id").and_then(|v| v.as_str()) {
+        Some(id) => match validate_job_id(id) {
+            Ok(validated) => validated,
+            Err(err) => return err,
+        },
+        None => return error_response(iii_sdk::IIIError::Handler(
+            "Missing job_id in request".to_string(),
+        )),
+    };
 
     let job_input = json!({
         "topic": topic,
@@ -687,50 +742,46 @@ async fn handle_queue_job(bridge: &III, input: Value) -> Value {
 }
 
 async fn handle_queue_redrive(bridge: &III, input: Value) -> Value {
-    let topic = input
-        .get("body")
-        .and_then(|b| b.get("queue"))
-        .and_then(|v| v.as_str())
-        .or_else(|| input.get("queue").and_then(|v| v.as_str()));
-
-    match topic {
-        Some(topic) => {
-            let redrive_input = json!({ "topic": topic });
-            match bridge
-                .call_with_timeout("redrive_dlq", redrive_input, Duration::from_secs(10))
-                .await
-            {
-                Ok(data) => success_response(data),
-                Err(err) => error_response(err),
-            }
-        }
-        None => error_response(iii_sdk::IIIError::Handler(
+    let topic = match extract_queue_name(&input) {
+        Some(name) => match validate_queue_name(name) {
+            Ok(validated) => validated,
+            Err(err) => return err,
+        },
+        None => return error_response(iii_sdk::IIIError::Handler(
             "Missing queue name in request".to_string(),
         )),
+    };
+
+    tracing::warn!(queue = %topic, "Console: redriving DLQ jobs");
+
+    let redrive_input = json!({ "topic": topic });
+    match bridge
+        .call_with_timeout("redrive_dlq", redrive_input, Duration::from_secs(10))
+        .await
+    {
+        Ok(data) => success_response(data),
+        Err(err) => error_response(err),
     }
 }
 
 async fn handle_queue_dlq_count(bridge: &III, input: Value) -> Value {
-    let topic = input
-        .get("body")
-        .and_then(|b| b.get("queue"))
-        .and_then(|v| v.as_str())
-        .or_else(|| input.get("queue").and_then(|v| v.as_str()));
-
-    match topic {
-        Some(topic) => {
-            let count_input = json!({ "topic": topic });
-            match bridge
-                .call_with_timeout("dlq_count", count_input, Duration::from_secs(5))
-                .await
-            {
-                Ok(data) => success_response(data),
-                Err(err) => error_response(err),
-            }
-        }
-        None => error_response(iii_sdk::IIIError::Handler(
+    let topic = match extract_queue_name(&input) {
+        Some(name) => match validate_queue_name(name) {
+            Ok(validated) => validated,
+            Err(err) => return err,
+        },
+        None => return error_response(iii_sdk::IIIError::Handler(
             "Missing queue name in request".to_string(),
         )),
+    };
+
+    let count_input = json!({ "topic": topic });
+    match bridge
+        .call_with_timeout("dlq_count", count_input, Duration::from_secs(5))
+        .await
+    {
+        Ok(data) => success_response(data),
+        Err(err) => error_response(err),
     }
 }
 

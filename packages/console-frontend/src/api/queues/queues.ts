@@ -55,16 +55,19 @@ export async function fetchQueueJobs(
   state: JobState,
   offset: number,
   limit: number,
-): Promise<{ jobs: unknown[]; count: number; offset: number; limit: number }> {
+): Promise<{ jobs: (QueueJob | DlqEntry)[]; count: number; offset: number; limit: number }> {
   const res = await fetch(`${getDevtoolsApi()}/queues/jobs`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ queue, state, offset, limit }),
   })
   if (!res.ok) throw new Error('Failed to fetch queue jobs')
-  return await unwrapResponse<{ jobs: unknown[]; count: number; offset: number; limit: number }>(
-    res,
-  )
+  return await unwrapResponse<{
+    jobs: (QueueJob | DlqEntry)[]
+    count: number
+    offset: number
+    limit: number
+  }>(res)
 }
 
 export async function fetchQueueJob(queue: string, jobId: string): Promise<QueueJob | null> {
@@ -73,7 +76,10 @@ export async function fetchQueueJob(queue: string, jobId: string): Promise<Queue
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ queue, job_id: jobId }),
   })
-  if (!res.ok) return null
+  if (!res.ok) {
+    const text = await res.text().catch(() => 'Unknown error')
+    throw new Error(`Failed to fetch job ${jobId}: ${text}`)
+  }
   return await unwrapResponse<QueueJob>(res)
 }
 

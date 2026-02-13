@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { AlertTriangle, Inbox, Loader2, RefreshCw, Search, SkullIcon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import type { JobState, QueueInfo } from '@/api'
+import type { DlqEntry, JobState, QueueInfo, QueueJob } from '@/api'
 import { redriveQueue } from '@/api'
 import { queueJobsQuery, queuesQuery } from '@/api/queries'
 import { Badge, Button, Input } from '@/components/ui/card'
@@ -70,7 +70,11 @@ function QueuesPage() {
     mutationFn: (queue: string) => redriveQueue(queue),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['queues'] })
-      queryClient.invalidateQueries({ queryKey: ['queue-jobs'] })
+      if (selectedQueue) {
+        queryClient.invalidateQueries({
+          queryKey: ['queue-jobs', selectedQueue],
+        })
+      }
       setRedriveConfirm(false)
       setRedriveError(null)
     },
@@ -97,12 +101,11 @@ function QueuesPage() {
     [queues],
   )
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: only run when queues list changes
   useEffect(() => {
     if (queues.length > 0 && !selectedQueue) {
       setSelectedQueue(queues[0].name)
     }
-  }, [queues])
+  }, [queues, selectedQueue])
 
   const handleSelectQueue = (name: string, mode: ViewMode) => {
     setSelectedQueue(name)
@@ -133,9 +136,9 @@ function QueuesPage() {
     if (!selectedJobId || jobs.length === 0) return null
     const isDlq = viewMode === 'dlq'
     return (
-      (jobs as Record<string, unknown>[]).find((j) => {
-        const jobData = isDlq ? (j.job as Record<string, unknown>) : j
-        return (jobData?.id as string) === selectedJobId
+      jobs.find((j) => {
+        const jobData: QueueJob = isDlq ? (j as DlqEntry).job : (j as QueueJob)
+        return jobData?.id === selectedJobId
       }) ?? null
     )
   }, [selectedJobId, jobs, viewMode])
@@ -397,11 +400,13 @@ function QueuesPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {jobs.map((job: unknown, idx: number) => {
-                          const j = job as Record<string, unknown>
+                        {jobs.map((job: QueueJob | DlqEntry, idx: number) => {
                           const isDlq = viewMode === 'dlq'
-                          const jobData = isDlq ? (j.job as Record<string, unknown>) : j
-                          const jobId = (jobData?.id as string) || `job-${idx}`
+                          const dlqEntry = isDlq ? (job as DlqEntry) : null
+                          const jobData: QueueJob = isDlq
+                            ? (job as DlqEntry).job
+                            : (job as QueueJob)
+                          const jobId = jobData?.id || `job-${idx}`
 
                           return (
                             <tr
@@ -418,13 +423,13 @@ function QueuesPage() {
                               </td>
                               <td className="py-3 px-4 max-w-[200px]">
                                 <span className="text-[#5B5B5B] truncate block text-[11px]">
-                                  {JSON.stringify(jobData?.data || j.data || '').slice(0, 60)}
+                                  {JSON.stringify(jobData?.data || '').slice(0, 60)}
                                 </span>
                               </td>
                               <td className="py-3 px-4">
                                 {isDlq ? (
                                   <span className="text-[#EF4444] text-[11px] truncate block max-w-[150px]">
-                                    {(j.error as string) || 'Unknown error'}
+                                    {dlqEntry?.error || 'Unknown error'}
                                   </span>
                                 ) : (
                                   <span className="text-[11px]">
@@ -436,7 +441,7 @@ function QueuesPage() {
                               <td className="py-3 px-4 text-[#5B5B5B] text-[11px]">
                                 {formatTimestamp(
                                   isDlq
-                                    ? (j.failed_at as number)
+                                    ? (dlqEntry?.failed_at as number)
                                     : activeTab === 'delayed'
                                       ? (jobData?.process_at as number)
                                       : (jobData?.created_at as number),
@@ -493,7 +498,7 @@ function QueuesPage() {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              <JobDetailPanel job={selectedJob} isDlq={viewMode === 'dlq'} />
+              <JobDetailPanel job={selectedJob as QueueJob | DlqEntry} isDlq={viewMode === 'dlq'} />
             </div>
           </div>
         )}
@@ -562,8 +567,9 @@ function QueuesPage() {
   )
 }
 
-function JobDetailPanel({ job, isDlq }: { job: Record<string, unknown>; isDlq: boolean }) {
-  const jobData = isDlq ? (job.job as Record<string, unknown>) : job
+function JobDetailPanel({ job, isDlq }: { job: QueueJob | DlqEntry; isDlq: boolean }) {
+  const dlqEntry = isDlq ? (job as DlqEntry) : null
+  const jobData: QueueJob = isDlq ? (job as DlqEntry).job : (job as QueueJob)
 
   if (!jobData) return null
 
@@ -574,50 +580,50 @@ function JobDetailPanel({ job, isDlq }: { job: Record<string, unknown>; isDlq: b
         <dl className="space-y-1.5 text-[11px]">
           <div className="flex justify-between">
             <dt className="text-[#5B5B5B]">ID</dt>
-            <dd className="font-mono">{String(jobData.id || '-')}</dd>
+            <dd className="font-mono">{jobData.id || '-'}</dd>
           </div>
           <div className="flex justify-between">
             <dt className="text-[#5B5B5B]">Queue</dt>
-            <dd className="font-mono">{String(jobData.queue || '-')}</dd>
+            <dd className="font-mono">{jobData.queue || '-'}</dd>
           </div>
           <div className="flex justify-between">
             <dt className="text-[#5B5B5B]">Attempts</dt>
             <dd>
-              {String(jobData.attempts_made || 0)} / {String(jobData.max_attempts || '-')}
+              {jobData.attempts_made || 0} / {jobData.max_attempts || '-'}
             </dd>
           </div>
           <div className="flex justify-between">
             <dt className="text-[#5B5B5B]">Backoff</dt>
-            <dd>{String(jobData.backoff_delay_ms || 0)}ms</dd>
+            <dd>{jobData.backoff_delay_ms || 0}ms</dd>
           </div>
           <div className="flex justify-between">
             <dt className="text-[#5B5B5B]">Created</dt>
-            <dd>{formatTimestamp(jobData.created_at as number)}</dd>
+            <dd>{formatTimestamp(jobData.created_at)}</dd>
           </div>
-          {Boolean(jobData.process_at) && (
+          {jobData.process_at && (
             <div className="flex justify-between">
               <dt className="text-[#5B5B5B]">Process At</dt>
-              <dd>{formatTimestamp(jobData.process_at as number)}</dd>
+              <dd>{formatTimestamp(jobData.process_at)}</dd>
             </div>
           )}
-          {Boolean(jobData.group_id) && (
+          {jobData.group_id && (
             <div className="flex justify-between">
               <dt className="text-[#5B5B5B]">Group</dt>
-              <dd className="font-mono">{String(jobData.group_id)}</dd>
+              <dd className="font-mono">{jobData.group_id}</dd>
             </div>
           )}
         </dl>
       </div>
 
-      {isDlq && (
+      {isDlq && dlqEntry && (
         <div className="space-y-2">
           <h4 className="text-[10px] tracking-wider uppercase text-[#EF4444]">Error</h4>
           <div className="bg-[#EF4444]/10 border border-[#EF4444]/20 rounded p-3">
             <p className="text-[11px] text-[#EF4444] break-words">
-              {String(job.error || 'Unknown error')}
+              {dlqEntry.error || 'Unknown error'}
             </p>
             <p className="text-[10px] text-[#5B5B5B] mt-1">
-              Failed at: {formatTimestamp(job.failed_at as number)}
+              Failed at: {formatTimestamp(dlqEntry.failed_at)}
             </p>
           </div>
         </div>
@@ -626,7 +632,7 @@ function JobDetailPanel({ job, isDlq }: { job: Record<string, unknown>; isDlq: b
       <div className="space-y-2">
         <h4 className="text-[10px] tracking-wider uppercase text-[#5B5B5B]">Payload</h4>
         <div className="bg-[#0A0A0A] border border-[#1D1D1D] rounded p-3 overflow-x-auto">
-          <JsonViewer data={jobData.data || job.data} maxDepth={5} />
+          <JsonViewer data={jobData.data} maxDepth={5} />
         </div>
       </div>
     </>
