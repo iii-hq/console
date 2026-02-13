@@ -76,6 +76,9 @@ export async function fetchQueueJob(queue: string, jobId: string): Promise<Queue
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ queue, job_id: jobId }),
   })
+  if (res.status === 404) {
+    return null
+  }
   if (!res.ok) {
     const text = await res.text().catch(() => 'Unknown error')
     throw new Error(`Failed to fetch job ${jobId}: ${text}`)
