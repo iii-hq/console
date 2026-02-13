@@ -625,7 +625,7 @@ async fn handle_flow_config_save(bridge: &III, input: Value) -> Value {
 
 async fn handle_queues_list(bridge: &III) -> Value {
     match bridge
-        .call_with_timeout("list_queues", json!({}), Duration::from_secs(5))
+        .call_with_timeout("queue.list_queues", json!({}), Duration::from_secs(5))
         .await
     {
         Ok(data) => success_response(data),
@@ -646,7 +646,7 @@ async fn handle_queue_stats(bridge: &III, input: Value) -> Value {
 
     let stats_input = json!({ "topic": topic });
     match bridge
-        .call_with_timeout("stats", stats_input, Duration::from_secs(5))
+        .call_with_timeout("queue.stats", stats_input, Duration::from_secs(5))
         .await
     {
         Ok(data) => success_response(data),
@@ -696,7 +696,7 @@ async fn handle_queue_jobs(bridge: &III, input: Value) -> Value {
     });
 
     match bridge
-        .call_with_timeout("jobs", jobs_input, Duration::from_secs(5))
+        .call_with_timeout("queue.jobs", jobs_input, Duration::from_secs(5))
         .await
     {
         Ok(data) => success_response(data),
@@ -733,7 +733,7 @@ async fn handle_queue_job(bridge: &III, input: Value) -> Value {
     });
 
     match bridge
-        .call_with_timeout("job", job_input, Duration::from_secs(5))
+        .call_with_timeout("queue.job", job_input, Duration::from_secs(5))
         .await
     {
         Ok(data) => success_response(data),
@@ -756,7 +756,7 @@ async fn handle_queue_redrive(bridge: &III, input: Value) -> Value {
 
     let redrive_input = json!({ "topic": topic });
     match bridge
-        .call_with_timeout("redrive_dlq", redrive_input, Duration::from_secs(10))
+        .call_with_timeout("queue.redrive_dlq", redrive_input, Duration::from_secs(10))
         .await
     {
         Ok(data) => success_response(data),
@@ -777,7 +777,7 @@ async fn handle_queue_dlq_count(bridge: &III, input: Value) -> Value {
 
     let count_input = json!({ "topic": topic });
     match bridge
-        .call_with_timeout("dlq_count", count_input, Duration::from_secs(5))
+        .call_with_timeout("queue.dlq_count", count_input, Duration::from_secs(5))
         .await
     {
         Ok(data) => success_response(data),
