@@ -4,6 +4,28 @@ Developer and operations console for the **iii engine**. Built as a standalone b
 
 ## Installation
 
+### Install script (recommended)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/iii-hq/console/main/install.sh | sh
+```
+
+Install a specific version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/iii-hq/console/main/install.sh | sh -s -- -v 0.1.5
+```
+
+Install to a custom directory:
+
+```bash
+INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com/iii-hq/console/main/install.sh | sh
+```
+
+The script auto-detects your platform, downloads the correct binary, verifies the SHA256 checksum, and adds it to your `PATH`.
+
+### Manual download
+
 Download the latest release binary for your platform from the [Releases](https://github.com/iii-hq/console/releases) page.
 
 | Platform | Target |
@@ -28,12 +50,6 @@ Then run normally:
 
 ```bash
 ./iii-console --engine-host localhost
-```
-
-### Verify checksum (optional)
-
-```bash
-shasum -a 256 -c iii-console-aarch64-apple-darwin.tar.gz.sha256
 ```
 
 ## Usage
