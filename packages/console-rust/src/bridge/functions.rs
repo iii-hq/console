@@ -448,7 +448,7 @@ async fn handle_streams_list(bridge: &III) -> Value {
     {
         Ok(data) => {
             // Transform to frontend format
-            if let Some(streams) = data.get("streams").and_then(|s| s.as_array()) {
+            if let Some(streams) = data.get("stream").and_then(|s| s.as_array()) {
                 let stream_objects: Vec<_> = streams
                     .iter()
                     .map(|stream| {
