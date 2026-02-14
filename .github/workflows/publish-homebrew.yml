@@ -156,14 +156,13 @@ jobs:
           cat "$FORMULA_FILE"
 
       - name: Test formula locally
-        env:
-          FORMULA_FILE: ${{ env.FORMULA_PATH }}
         run: |
-          cd homebrew-tap
-          brew audit --new --formula "$FORMULA_FILE" || true
-          brew install "./$FORMULA_FILE"
+          brew tap iii-hq/tap "${{ github.workspace }}/homebrew-tap"
+          brew audit --new iii-hq/tap/iii-console || true
+          brew install iii-hq/tap/iii-console
           iii-console --version
           brew uninstall iii-console
+          brew untap iii-hq/tap
 
       - name: Commit and push changes
         if: inputs.dry_run != true
