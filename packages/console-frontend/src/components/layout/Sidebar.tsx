@@ -18,9 +18,9 @@ import { useConfig } from '../../api/config-provider'
 
 const BASE_NAV_ITEMS = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Functions', href: '/handlers', icon: Server },
   { name: 'States', href: '/states', icon: Database },
   { name: 'Streams', href: '/streams', icon: Layers },
-  { name: 'Functions', href: '/handlers', icon: Server },
   { name: 'Traces', href: '/traces', icon: GitBranch },
   { name: 'Logs', href: '/logs', icon: Terminal },
   { name: 'Config', href: '/config', icon: Settings },
@@ -102,7 +102,7 @@ export function Sidebar() {
   const sidebarContent = (
     <>
       {/* Logo */}
-      <div className="p-5 border-b border-border flex items-center justify-between">
+      <div className="px-5 py-2 md:py-3 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-3">
           <IIILogo className="w-6 h-6 text-white" />
           <div className="leading-tight">

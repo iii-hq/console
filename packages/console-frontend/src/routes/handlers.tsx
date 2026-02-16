@@ -124,7 +124,7 @@ function HandlersPage() {
 
   const getApiPath = (fn: FunctionInfo): string | null => {
     const trigger = getAssociatedTrigger(fn)
-    if (!trigger || trigger.trigger_type !== 'api') return null
+    if (!trigger || trigger.trigger_type !== 'http') return null
     const config = trigger.config as { api_path?: string }
     return config.api_path || null
   }
@@ -219,7 +219,7 @@ function HandlersPage() {
     const startTime = Date.now()
 
     try {
-      if (trigger.trigger_type === 'api') {
+      if (trigger.trigger_type === 'http') {
         const config = trigger.config as { api_path?: string; http_method?: string }
         let path = config.api_path || ''
         const method = httpMethod || config.http_method || 'GET'
@@ -313,7 +313,7 @@ function HandlersPage() {
       setHttpMethod(method)
 
       const trigger = getAssociatedTrigger(fn)
-      if (trigger?.trigger_type === 'api') {
+      if (trigger?.trigger_type === 'http') {
         const config = trigger.config as { api_path?: string }
         const path = config.api_path || ''
         const matches = path.match(/:([a-zA-Z_]+)/g)
@@ -340,7 +340,7 @@ function HandlersPage() {
     const trigger = getAssociatedTrigger(fn)
     if (!trigger) return <Code2 className="w-4 h-4 text-muted" />
     switch (trigger.trigger_type) {
-      case 'api':
+      case 'http':
         return <Globe className="w-4 h-4 text-cyan-400" />
       case 'cron':
         return <Calendar className="w-4 h-4 text-orange-400" />
@@ -503,7 +503,7 @@ function HandlersPage() {
                               <Badge
                                 variant="outline"
                                 className={`text-[9px] uppercase ${
-                                  trigger.trigger_type === 'api'
+                                  trigger.trigger_type === 'http'
                                     ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30'
                                     : trigger.trigger_type === 'cron'
                                       ? 'bg-orange-500/10 text-orange-400 border-orange-500/30'
@@ -516,7 +516,7 @@ function HandlersPage() {
                               </Badge>
                             )}
                           </div>
-                          {trigger?.trigger_type === 'api' && apiPath && (
+                          {trigger?.trigger_type === 'http' && apiPath && (
                             <div className="text-xs text-cyan-400/70 font-mono mt-0.5">
                               {getHttpMethod(fn)} /{apiPath}
                             </div>
@@ -543,7 +543,7 @@ function HandlersPage() {
 
                         <div className="flex items-center gap-2 shrink-0">
                           <div className="w-2 h-2 rounded-full bg-success" />
-                          {trigger?.trigger_type === 'api' && (
+                          {trigger?.trigger_type === 'http' && (
                             <Button
                               variant="ghost"
                               size="sm"
@@ -618,7 +618,7 @@ function HandlersPage() {
                       </div>
                     )}
 
-                    {trigger?.trigger_type === 'api' && apiPath && (
+                    {trigger?.trigger_type === 'http' && apiPath && (
                       <>
                         <div>
                           <div className="text-[10px] text-muted uppercase tracking-wider mb-2">
