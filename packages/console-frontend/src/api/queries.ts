@@ -226,3 +226,22 @@ export const flowConfigQuery = (flowId: string) =>
     queryFn: () => fetchFlowConfig(flowId),
     enabled: !!flowId,
   })
+
+// Queues
+import type { JobState } from './queues/queues'
+import { fetchQueueJobs, fetchQueues } from './queues/queues'
+
+export const queuesQuery = queryOptions({
+  queryKey: ['queues'],
+  queryFn: fetchQueues,
+  refetchInterval: 5000,
+  refetchIntervalInBackground: false,
+})
+
+export const queueJobsQuery = (queue: string, state: JobState, offset: number, limit: number) =>
+  queryOptions({
+    queryKey: ['queue-jobs', queue, state, offset, limit],
+    queryFn: () => fetchQueueJobs(queue, state, offset, limit),
+    enabled: !!queue,
+    staleTime: 3000,
+  })

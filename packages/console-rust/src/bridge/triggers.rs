@@ -90,6 +90,20 @@ pub fn register_triggers(bridge: &III) -> Result<(), IIIError> {
             "_console/flows/config/:flow_id",
             "POST",
         ),
+        ("engine.console.queues_list", "_console/queues", "GET"),
+        ("engine.console.queue_stats", "_console/queues/stats", "POST"),
+        ("engine.console.queue_jobs", "_console/queues/jobs", "POST"),
+        ("engine.console.queue_job", "_console/queues/job", "POST"),
+        (
+            "engine.console.queue_redrive",
+            "_console/queues/redrive",
+            "POST",
+        ),
+        (
+            "engine.console.queue_dlq_count",
+            "_console/queues/dlq-count",
+            "POST",
+        ),
     ];
 
     // Register each trigger with the bridge

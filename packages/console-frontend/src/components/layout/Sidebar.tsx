@@ -3,6 +3,7 @@ import { clsx } from 'clsx'
 import {
   Database,
   GitBranch,
+  Inbox,
   Layers,
   LayoutDashboard,
   Menu,
@@ -20,6 +21,7 @@ const BASE_NAV_ITEMS = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'States', href: '/states', icon: Database },
   { name: 'Streams', href: '/streams', icon: Layers },
+  { name: 'Queues', href: '/queues', icon: Inbox },
   { name: 'Functions', href: '/handlers', icon: Server },
   { name: 'Traces', href: '/traces', icon: GitBranch },
   { name: 'Logs', href: '/logs', icon: Terminal },

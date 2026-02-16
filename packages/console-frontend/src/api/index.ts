@@ -84,6 +84,9 @@ export type {
 export { clearTraces, fetchTraces, fetchTraceTree } from './observability/traces'
 // Queries (React Query)
 export * from './queries'
+// Queues
+export type { DlqEntry, JobState, QueueInfo, QueueJob } from './queues/queues'
+export { fetchQueueJobs, fetchQueueStats, fetchQueues, redriveQueue } from './queues/queues'
 // State
 export type { StateGroup, StateItem } from './state/state'
 export {
