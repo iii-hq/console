@@ -83,10 +83,7 @@ async fn main() -> Result<()> {
 
     let args = Args::parse();
 
-    info!(
-        "Starting iii-console on {}:{}",
-        args.host, args.port
-    );
+    info!("Starting iii-console on {}:{}", args.host, args.port);
     info!(
         "Connecting to engine at {}:{} (WS: {})",
         args.engine_host, args.engine_port, args.ws_port
@@ -98,7 +95,10 @@ async fn main() -> Result<()> {
 
     // Configure OpenTelemetry (enabled by default, use --no-otel to disable)
     if !args.no_otel {
-        info!("OpenTelemetry enabled (service: {})", args.otel_service_name);
+        info!(
+            "OpenTelemetry enabled (service: {})",
+            args.otel_service_name
+        );
         bridge.set_otel_config(iii_sdk::OtelConfig {
             enabled: Some(true),
             service_name: Some(args.otel_service_name),
@@ -121,7 +121,10 @@ async fn main() -> Result<()> {
     // Now connect - SDK handles reconnection internally
     // If OTEL is configured, the SDK initializes it during connect()
     if let Err(e) = bridge.connect().await {
-        tracing::warn!("Initial bridge connection failed: {}. Will retry automatically.", e);
+        tracing::warn!(
+            "Initial bridge connection failed: {}. Will retry automatically.",
+            e
+        );
     }
 
     let config = server::ServerConfig {
@@ -135,7 +138,7 @@ async fn main() -> Result<()> {
 
     // Run server with graceful shutdown
     let server = server::run_server(config);
-    
+
     tokio::select! {
         result = server => result,
         _ = shutdown_signal() => {
