@@ -28,7 +28,7 @@ export async function fetchStateItems(
   const res = await fetch(`${getDevtoolsApi()}/states/group`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ group_id: groupId }),
+    body: JSON.stringify({ scope: groupId }),
   })
   if (!res.ok) throw new Error('Failed to fetch state items')
   const data = await unwrapResponse<{ items: unknown[] }>(res)
