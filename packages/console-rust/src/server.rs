@@ -139,8 +139,12 @@ pub async fn run_server(config: ServerConfig) -> Result<()> {
     let mut origins: Vec<HeaderValue> = vec![
         format!("http://127.0.0.1:{}", config.port).parse().unwrap(),
         format!("http://localhost:{}", config.port).parse().unwrap(),
-        format!("https://127.0.0.1:{}", config.port).parse().unwrap(),
-        format!("https://localhost:{}", config.port).parse().unwrap(),
+        format!("https://127.0.0.1:{}", config.port)
+            .parse()
+            .unwrap(),
+        format!("https://localhost:{}", config.port)
+            .parse()
+            .unwrap(),
     ];
 
     // Add configured host origins if different from defaults
