@@ -101,7 +101,7 @@ pub fn register_triggers(bridge: &III) -> Result<(), IIIError> {
 
         debug!("Registering API trigger: {} -> {}", api_path, function_path);
 
-        bridge.register_trigger("api", function_path, config)?;
+        bridge.register_trigger("http", function_path, config)?;
 
         info!(
             "Successfully registered API trigger: {} -> {}",
