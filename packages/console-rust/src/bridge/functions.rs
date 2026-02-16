@@ -329,16 +329,16 @@ async fn handle_state_groups_list(bridge: &III, _input: Value) -> Value {
 }
 
 async fn handle_state_group_items(bridge: &III, input: Value) -> Value {
-    // Extract group_id from body or top-level input
-    let group_id = input
+    // Extract scope from body or top-level input
+    let scope = input
         .get("body")
-        .and_then(|b| b.get("group_id"))
+        .and_then(|b| b.get("scope"))
         .and_then(|v| v.as_str())
-        .or_else(|| input.get("group_id").and_then(|v| v.as_str()));
+        .or_else(|| input.get("scope").and_then(|v| v.as_str()));
 
-    match group_id {
-        Some(group_id) => {
-            let state_input = json!({ "group_id": group_id });
+    match scope {
+        Some(scope) => {
+            let state_input = json!({ "scope": scope });
 
             match bridge
                 .call_with_timeout("state::list", state_input, Duration::from_secs(5))
@@ -362,7 +362,7 @@ async fn handle_state_group_items(bridge: &III, input: Value) -> Value {
             }
         }
         None => error_response(iii_sdk::IIIError::Handler(
-            "Missing group_id in request".to_string(),
+            "Missing scope in request".to_string(),
         )),
     }
 }
@@ -415,8 +415,8 @@ async fn handle_state_item_set(bridge: &III, input: Value) -> Value {
     };
 
     let state_input = json!({
-        "group_id": group_id,
-        "item_id": item_id,
+        "scope": group_id,
+        "key": item_id,
         "data": data
     });
 
@@ -463,8 +463,8 @@ async fn handle_state_item_delete(bridge: &III, input: Value) -> Value {
     };
 
     let state_input = json!({
-        "group_id": group_id,
-        "item_id": item_id
+        "scope": group_id,
+        "key": item_id
     });
 
     match bridge
@@ -554,8 +554,8 @@ async fn handle_flow_config_get(bridge: &III, input: Value) -> Value {
 
     // Try to get config from the engine's state
     let state_input = json!({
-        "group_id": FLOW_CONFIG_GROUP,
-        "item_id": flow_id
+        "scope": FLOW_CONFIG_GROUP,
+        "key": flow_id
     });
 
     match bridge
@@ -603,8 +603,8 @@ async fn handle_flow_config_save(bridge: &III, input: Value) -> Value {
     let data = json!({ "id": flow_id, "config": config });
 
     let state_input = json!({
-        "group_id": FLOW_CONFIG_GROUP,
-        "item_id": flow_id,
+        "scope": FLOW_CONFIG_GROUP,
+        "key": flow_id,
         "data": data
     });
 
