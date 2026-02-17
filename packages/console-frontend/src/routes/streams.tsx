@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import {
-  Activity,
   ArrowDownLeft,
   ArrowLeftRight,
   ArrowUpRight,
@@ -17,8 +16,6 @@ import {
   Radio,
   Search,
   Trash2,
-  Wifi,
-  WifiOff,
   X,
   Zap,
 } from 'lucide-react'
@@ -26,7 +23,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { StreamMessage } from '@/api'
 import { getConnectionInfo, streamsQuery } from '@/api'
 import { useConfig } from '@/api/config-provider'
-import { Badge, Button, Input } from '@/components/ui/card'
+import { Button, Input } from '@/components/ui/card'
 import { JsonViewer } from '@/components/ui/json-viewer'
 import { Pagination } from '@/components/ui/pagination'
 
@@ -469,7 +466,7 @@ function StreamsPage() {
   return (
     <div className="flex flex-col h-full bg-background text-foreground">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 md:px-5 py-2 md:py-3 bg-dark-gray/30 border-b border-border">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 md:px-5 py-3 md:py-4 bg-dark-gray/30 border-b border-border">
         <div className="flex items-center gap-2 md:gap-4 flex-wrap">
           <h1 className="text-sm md:text-base font-semibold flex items-center gap-2">
             <Layers className="w-4 h-4 text-green-400" />
@@ -480,25 +477,6 @@ function StreamsPage() {
             <span className="hidden md:inline">WebSocket Monitor</span>
             <span className="md:hidden">WS</span>
           </div>
-          <Badge
-            variant={wsConnected ? 'success' : 'error'}
-            className="gap-1 text-[10px] md:text-xs"
-          >
-            {wsConnected ? (
-              <Wifi className="w-2.5 h-2.5 md:w-3 md:h-3" />
-            ) : (
-              <WifiOff className="w-2.5 h-2.5 md:w-3 md:h-3" />
-            )}
-            <span className="hidden sm:inline">{wsConnected ? 'Connected' : 'Disconnected'}</span>
-          </Badge>
-          {stats.latency !== null && wsConnected && (
-            <div className="flex items-center gap-1 text-[10px] md:text-xs text-muted">
-              <Activity
-                className={`w-2.5 h-2.5 md:w-3 md:h-3 ${stats.latency < 100 ? 'text-green-400' : stats.latency < 300 ? 'text-yellow' : 'text-error'}`}
-              />
-              <span className="font-mono tabular-nums">{stats.latency}ms</span>
-            </div>
-          )}
         </div>
 
         <div className="flex items-center gap-1.5 md:gap-2">

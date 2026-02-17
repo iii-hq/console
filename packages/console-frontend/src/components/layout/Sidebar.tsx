@@ -1,6 +1,8 @@
+import { useQuery } from '@tanstack/react-query'
 import { Link, useLocation } from '@tanstack/react-router'
 import { clsx } from 'clsx'
 import {
+  ChevronUp,
   Database,
   GitBranch,
   Layers,
@@ -11,14 +13,17 @@ import {
   Terminal,
   Workflow,
   X,
+  Zap,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
-import { getConnectionInfo } from '../../api/config'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useConfig } from '../../api/config-provider'
+import { healthQuery } from '../../api/queries'
+import type { HealthComponent } from '../../api/system/status'
 
 const BASE_NAV_ITEMS = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Functions', href: '/handlers', icon: Server },
+  { name: 'Functions', href: '/functions', icon: Server },
+  { name: 'Triggers', href: '/triggers', icon: Zap },
   { name: 'States', href: '/states', icon: Database },
   { name: 'Streams', href: '/streams', icon: Layers },
   { name: 'Traces', href: '/traces', icon: GitBranch },
@@ -31,24 +36,55 @@ const FLOW_NAV_ITEM = { name: 'Flow', href: '/flow', icon: Workflow }
 function IIILogo({ className = '' }: { className?: string }) {
   return (
     <svg viewBox="0 0 28 27" fill="currentColor" className={className} aria-label="iii logo">
-      {}
-      <rect x="0" y="0" width="4" height="4" />
-      <rect x="12" y="0" width="4" height="4" />
-      <rect x="24" y="0" width="4" height="4" />
-      {}
-      <rect x="0" y="7" width="4" height="20" />
-      <rect x="12" y="7" width="4" height="20" />
-      <rect x="24" y="7" width="4" height="20" />
+      <rect x="0" y="0" width="4" height="4" rx="0.8" />
+      <rect x="12" y="0" width="4" height="4" rx="0.8" />
+      <rect x="24" y="0" width="4" height="4" rx="0.8" />
+      <rect x="0" y="7" width="4" height="20" rx="0.8" />
+      <rect x="12" y="7" width="4" height="20" rx="0.8" />
+      <rect x="24" y="7" width="4" height="20" rx="0.8" />
     </svg>
   )
+}
+
+function ComponentDetail({ name, details }: { name: string; details: Record<string, unknown> }) {
+  switch (name) {
+    case 'logs':
+      return <>{details.stored_logs ?? 0} stored</>
+    case 'metrics':
+      return <>{details.stored_metrics ?? 0} stored</>
+    case 'spans':
+      return <>{details.stored_spans ?? 0} stored</>
+    case 'otel': {
+      const exporter = String(details.exporter ?? '')
+        .replace(/^Some\(/, '')
+        .replace(/\)$/, '')
+        .toLowerCase()
+      return (
+        <>
+          {exporter} · {String(details.service_name ?? '')}
+        </>
+      )
+    }
+    default:
+      return null
+  }
 }
 
 export function Sidebar() {
   const location = useLocation()
   const pathname = location.pathname
   const config = useConfig()
-  const [isOnline, setIsOnline] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [showHealth, setShowHealth] = useState(false)
+  const healthPanelRef = useRef<HTMLDivElement>(null)
+
+  const { data: health } = useQuery(healthQuery)
+  const isOnline = health?.status === 'healthy'
+
+  const healthyCount = health
+    ? Object.values(health.components).filter((c) => c?.status === 'healthy').length
+    : 0
+  const totalCount = health ? Object.keys(health.components).length : 0
 
   const navItems = useMemo(() => {
     if (config.enableFlow) {
@@ -57,31 +93,32 @@ export function Sidebar() {
     return BASE_NAV_ITEMS
   }, [config.enableFlow])
 
+  const toggleHealth = useCallback(() => setShowHealth((prev) => !prev), [])
+
+  // Close health panel on click outside
   useEffect(() => {
-    const checkStatus = async () => {
-      try {
-        const { devtoolsApi } = getConnectionInfo()
-        const res = await fetch(`${devtoolsApi}/health`)
-        setIsOnline(res.ok)
-      } catch {
-        setIsOnline(false)
+    if (!showHealth) return
+    const handleClick = (e: MouseEvent) => {
+      if (healthPanelRef.current && !healthPanelRef.current.contains(e.target as Node)) {
+        setShowHealth(false)
       }
     }
-
-    checkStatus()
-    const interval = setInterval(checkStatus, 60000)
-    return () => clearInterval(interval)
-  }, [])
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showHealth])
 
   // Close mobile menu on route change
   useEffect(() => {
     setIsMobileMenuOpen(false)
   }, [])
 
-  // Close mobile menu on escape key
+  // Close mobile menu and health panel on escape key
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsMobileMenuOpen(false)
+      if (e.key === 'Escape') {
+        setIsMobileMenuOpen(false)
+        setShowHealth(false)
+      }
     }
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
@@ -102,7 +139,7 @@ export function Sidebar() {
   const sidebarContent = (
     <>
       {/* Logo */}
-      <div className="px-5 py-2 md:py-3 border-b border-border flex items-center justify-between">
+      <div className="px-5 py-4 md:py-4.5 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-3">
           <IIILogo className="w-6 h-6 text-white" />
           <div className="leading-tight">
@@ -150,12 +187,63 @@ export function Sidebar() {
       </nav>
 
       {/* Status Footer */}
-      <div className="p-4 border-t border-border">
-        <div className="flex items-center gap-2">
+      <div className="relative p-4 border-t border-border" ref={healthPanelRef}>
+        {/* Health Popover */}
+        {showHealth && health && (
+          <div className="absolute bottom-full left-3 right-3 mb-2 bg-[#0A0A0A] border border-[#2D2D2D] rounded-lg overflow-hidden animate-panel-in z-50">
+            <div className="px-3 py-2 border-b border-[#2D2D2D] flex items-center justify-between">
+              <span className="text-[10px] tracking-[0.15em] text-muted uppercase">
+                Engine Health
+              </span>
+              <span className="text-[10px] tracking-wide text-muted/60 font-mono">
+                v{health.version}
+              </span>
+            </div>
+            <div className="p-2 space-y-0.5">
+              {(Object.entries(health.components) as [string, HealthComponent | undefined][]).map(
+                ([name, component]) => {
+                  if (!component) return null
+                  const isHealthy = component.status === 'healthy'
+                  return (
+                    <div
+                      key={name}
+                      className="flex items-center justify-between px-2 py-1.5 rounded hover:bg-[#1D1D1D]/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={clsx(
+                            'w-1.5 h-1.5 rounded-full',
+                            isHealthy ? 'bg-[#22C55E]' : 'bg-[#EF4444]',
+                          )}
+                        />
+                        <span className="text-[10px] tracking-[0.1em] text-foreground uppercase">
+                          {name}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-muted/60 font-mono">
+                        <ComponentDetail name={name} details={component.details} />
+                      </span>
+                    </div>
+                  )
+                },
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Status Pill */}
+        <button
+          type="button"
+          onClick={toggleHealth}
+          className="flex items-center gap-2 cursor-pointer group"
+          aria-expanded={showHealth}
+          aria-label="Toggle engine health details"
+        >
           <div
             className={clsx(
-              'flex items-center gap-2 px-3 py-1.5 rounded-full border',
+              'flex items-center gap-2 px-3 py-1.5 rounded-full border transition-colors',
               isOnline ? 'border-[#22C55E]/50' : 'border-[#EF4444]/50',
+              showHealth && 'bg-[#1D1D1D]/50',
             )}
           >
             <div
@@ -169,8 +257,20 @@ export function Sidebar() {
             <span className="text-[10px] tracking-[0.1em] text-foreground uppercase">
               {isOnline ? 'Online' : 'Offline'}
             </span>
+            {health && (
+              <span className="text-[10px] text-muted/60 font-mono">
+                {healthyCount}/{totalCount}
+              </span>
+            )}
+            <ChevronUp
+              className={clsx(
+                'w-3 h-3 text-muted/40 transition-transform duration-150',
+                !showHealth && 'rotate-180',
+              )}
+            />
           </div>
-        </div>
+        </button>
+
         <div className="mt-3 text-[9px] text-muted/60 tracking-wide font-mono">
           v{config.version} • {config.engineHost}:{config.enginePort}
         </div>

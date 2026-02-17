@@ -9,15 +9,21 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TriggersRouteImport } from './routes/triggers'
 import { Route as TracesRouteImport } from './routes/traces'
 import { Route as StreamsRouteImport } from './routes/streams'
 import { Route as StatesRouteImport } from './routes/states'
 import { Route as LogsRouteImport } from './routes/logs'
-import { Route as HandlersRouteImport } from './routes/handlers'
+import { Route as FunctionsRouteImport } from './routes/functions'
 import { Route as FlowRouteImport } from './routes/flow'
 import { Route as ConfigRouteImport } from './routes/config'
 import { Route as IndexRouteImport } from './routes/index'
 
+const TriggersRoute = TriggersRouteImport.update({
+  id: '/triggers',
+  path: '/triggers',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TracesRoute = TracesRouteImport.update({
   id: '/traces',
   path: '/traces',
@@ -38,9 +44,9 @@ const LogsRoute = LogsRouteImport.update({
   path: '/logs',
   getParentRoute: () => rootRouteImport,
 } as any)
-const HandlersRoute = HandlersRouteImport.update({
-  id: '/handlers',
-  path: '/handlers',
+const FunctionsRoute = FunctionsRouteImport.update({
+  id: '/functions',
+  path: '/functions',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FlowRoute = FlowRouteImport.update({
@@ -63,32 +69,35 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/config': typeof ConfigRoute
   '/flow': typeof FlowRoute
-  '/handlers': typeof HandlersRoute
+  '/functions': typeof FunctionsRoute
   '/logs': typeof LogsRoute
   '/states': typeof StatesRoute
   '/streams': typeof StreamsRoute
   '/traces': typeof TracesRoute
+  '/triggers': typeof TriggersRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/config': typeof ConfigRoute
   '/flow': typeof FlowRoute
-  '/handlers': typeof HandlersRoute
+  '/functions': typeof FunctionsRoute
   '/logs': typeof LogsRoute
   '/states': typeof StatesRoute
   '/streams': typeof StreamsRoute
   '/traces': typeof TracesRoute
+  '/triggers': typeof TriggersRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/config': typeof ConfigRoute
   '/flow': typeof FlowRoute
-  '/handlers': typeof HandlersRoute
+  '/functions': typeof FunctionsRoute
   '/logs': typeof LogsRoute
   '/states': typeof StatesRoute
   '/streams': typeof StreamsRoute
   '/traces': typeof TracesRoute
+  '/triggers': typeof TriggersRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -96,46 +105,57 @@ export interface FileRouteTypes {
     | '/'
     | '/config'
     | '/flow'
-    | '/handlers'
+    | '/functions'
     | '/logs'
     | '/states'
     | '/streams'
     | '/traces'
+    | '/triggers'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/config'
     | '/flow'
-    | '/handlers'
+    | '/functions'
     | '/logs'
     | '/states'
     | '/streams'
     | '/traces'
+    | '/triggers'
   id:
     | '__root__'
     | '/'
     | '/config'
     | '/flow'
-    | '/handlers'
+    | '/functions'
     | '/logs'
     | '/states'
     | '/streams'
     | '/traces'
+    | '/triggers'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ConfigRoute: typeof ConfigRoute
   FlowRoute: typeof FlowRoute
-  HandlersRoute: typeof HandlersRoute
+  FunctionsRoute: typeof FunctionsRoute
   LogsRoute: typeof LogsRoute
   StatesRoute: typeof StatesRoute
   StreamsRoute: typeof StreamsRoute
   TracesRoute: typeof TracesRoute
+  TriggersRoute: typeof TriggersRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/triggers': {
+      id: '/triggers'
+      path: '/triggers'
+      fullPath: '/triggers'
+      preLoaderRoute: typeof TriggersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/traces': {
       id: '/traces'
       path: '/traces'
@@ -164,11 +184,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LogsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/handlers': {
-      id: '/handlers'
-      path: '/handlers'
-      fullPath: '/handlers'
-      preLoaderRoute: typeof HandlersRouteImport
+    '/functions': {
+      id: '/functions'
+      path: '/functions'
+      fullPath: '/functions'
+      preLoaderRoute: typeof FunctionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/flow': {
@@ -199,11 +219,12 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ConfigRoute: ConfigRoute,
   FlowRoute: FlowRoute,
-  HandlersRoute: HandlersRoute,
+  FunctionsRoute: FunctionsRoute,
   LogsRoute: LogsRoute,
   StatesRoute: StatesRoute,
   StreamsRoute: StreamsRoute,
   TracesRoute: TracesRoute,
+  TriggersRoute: TriggersRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

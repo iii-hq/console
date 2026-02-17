@@ -576,6 +576,38 @@ async fn handle_flow_config_get(bridge: &III, input: Value) -> Value {
     }
 }
 
+async fn handle_invoke(bridge: &III, input: Value) -> Value {
+    let body = input.get("body").unwrap_or(&input);
+
+    let function_id = body
+        .get("function_id")
+        .and_then(|v| v.as_str())
+        .or_else(|| input.get("function_id").and_then(|v| v.as_str()));
+
+    let function_id = match function_id {
+        Some(id) => id.to_string(),
+        None => {
+            return error_response(iii_sdk::IIIError::Handler(
+                "Missing function_id in request".to_string(),
+            ))
+        }
+    };
+
+    let data = body
+        .get("input")
+        .or_else(|| input.get("input"))
+        .cloned()
+        .unwrap_or(json!({}));
+
+    match bridge
+        .call_with_timeout(&function_id, data, Duration::from_secs(30))
+        .await
+    {
+        Ok(result) => success_response(result),
+        Err(err) => error_response(err),
+    }
+}
+
 async fn handle_flow_config_save(bridge: &III, input: Value) -> Value {
     let body = input.get("body").cloned().unwrap_or(input.clone());
 
@@ -748,5 +780,11 @@ pub fn register_functions(bridge: &III) {
     bridge.register_function("engine::console::flow_config_save", move |input| {
         let bridge = b.clone();
         async move { Ok(handle_flow_config_save(&bridge, input).await) }
+    });
+
+    let b = bridge.clone();
+    bridge.register_function("engine::console::invoke", move |input| {
+        let bridge = b.clone();
+        async move { Ok(handle_invoke(&bridge, input).await) }
     });
 }

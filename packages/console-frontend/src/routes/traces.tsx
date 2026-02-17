@@ -8,8 +8,6 @@ import {
   GitBranch,
   RefreshCw,
   Timer,
-  Wifi,
-  WifiOff,
   XCircle,
   Zap,
 } from 'lucide-react'
@@ -23,7 +21,7 @@ import { TraceHeader } from '@/components/traces/TraceHeader'
 import { TraceMap } from '@/components/traces/TraceMap'
 import { ViewSwitcher, type ViewType } from '@/components/traces/ViewSwitcher'
 import { WaterfallChart } from '@/components/traces/WaterfallChart'
-import { Badge, Button } from '@/components/ui/card'
+import { Button } from '@/components/ui/card'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { Pagination } from '@/components/ui/pagination'
 import { useTraceFilters } from '@/hooks/useTraceFilters'
@@ -77,7 +75,6 @@ function TracesPage() {
   const [showSystem, setShowSystem] = useState(false)
   const [traceGroups, setTraceGroups] = useState<TraceGroup[]>([])
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null)
-  const isConnected = true
   const [hasOtelConfigured, setHasOtelConfigured] = useState(false)
 
   const [activeView, setActiveView] = useState<ViewType>('waterfall')
@@ -232,23 +229,12 @@ function TracesPage() {
 
   return (
     <div className="flex flex-col h-full bg-background text-foreground">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 md:px-5 py-2 md:py-3 bg-dark-gray/30 border-b border-border">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 md:px-5 py-3 md:py-4 bg-dark-gray/30 border-b border-border">
         <div className="flex items-center gap-2 md:gap-4 flex-wrap">
           <h1 className="text-sm md:text-base font-semibold flex items-center gap-2">
             <GitBranch className="w-4 h-4 text-cyan-400" />
             Traces
           </h1>
-          <Badge
-            variant={isConnected ? 'success' : 'error'}
-            className="gap-1 text-[10px] md:text-xs"
-          >
-            {isConnected ? (
-              <Wifi className="w-2.5 h-2.5 md:w-3 md:h-3" />
-            ) : (
-              <WifiOff className="w-2.5 h-2.5 md:w-3 md:h-3" />
-            )}
-            <span className="hidden sm:inline">{isConnected ? 'Live' : 'Offline'}</span>
-          </Badge>
         </div>
 
         <div className="flex items-center gap-1.5 md:gap-2">
