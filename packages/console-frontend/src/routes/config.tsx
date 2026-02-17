@@ -324,7 +324,7 @@ ${workerPools.map((w) => `# ${w.id}: ${w.count || 0} connected`).join('\n')}
 
   return (
     <div className="flex flex-col h-full bg-background text-foreground">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 md:px-5 py-2 md:py-3 bg-dark-gray/30 border-b border-border">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 md:px-5 py-3 md:py-4 bg-dark-gray/30 border-b border-border">
         <div className="flex items-center gap-2 md:gap-4 flex-wrap">
           <h1 className="text-sm md:text-base font-semibold flex items-center gap-2">
             <Settings className="w-4 h-4" />

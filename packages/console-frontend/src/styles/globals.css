@@ -191,6 +191,7 @@ body {
   transform: translateY(-1px);
 }
 
+
 /* Table styles */
 .table-row {
   border-bottom: 1px solid var(--border);

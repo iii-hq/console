@@ -90,6 +90,8 @@ pub fn register_triggers(bridge: &III) -> Result<(), IIIError> {
             "_console/flows/config/:flow_id",
             "POST",
         ),
+        // Function invocation endpoint
+        ("engine::console::invoke", "_console/invoke", "POST"),
     ];
 
     // Register each trigger with the bridge

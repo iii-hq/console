@@ -14,8 +14,6 @@ import {
   Search,
   Terminal,
   Trash2,
-  Wifi,
-  WifiOff,
   X,
   Zap,
 } from 'lucide-react'
@@ -105,7 +103,6 @@ function LogsPage() {
   const [isPaused, setIsPaused] = useState(false)
   const [hasLoggingAdapter, setHasLoggingAdapter] = useState(false)
   const [selectedLogId, setSelectedLogId] = useState<string | undefined>()
-  const [isConnected, setIsConnected] = useState(true)
   const [copied, setCopied] = useState<string | null>(null)
   const [autoScroll] = useState(true)
   const [fullscreenLogId, setFullscreenLogId] = useState<string | null>(null)
@@ -131,8 +128,6 @@ function LogsPage() {
   useEffect(() => {
     if (otelLogsData?.logs && otelLogsData.logs.length > 0) {
       setHasLoggingAdapter(true)
-      setIsConnected(true)
-
       const transformedLogs: LogEntry[] = otelLogsData.logs.map((log: OtelLog, i: number) => {
         // Extract service name from resource attributes
         const serviceName = (log.resource?.['service.name'] as string) || 'unknown'
@@ -299,33 +294,18 @@ function LogsPage() {
 
   return (
     <div className="flex flex-col h-full bg-background text-foreground">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 md:px-5 py-2 md:py-3 bg-dark-gray/30 border-b border-border">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 md:px-5 py-3 md:py-4 bg-dark-gray/30 border-b border-border">
         <div className="flex items-center gap-2 md:gap-4 flex-wrap">
           <h1 className="text-sm md:text-base font-semibold flex items-center gap-2">
             <Terminal className="w-4 h-4" />
             Logs
           </h1>
-          <Badge
-            variant={isConnected && !isPaused ? 'success' : isPaused ? 'warning' : 'error'}
-            className="gap-1 text-[10px] md:text-xs"
-          >
-            {isPaused ? (
-              <>
-                <Pause className="w-2.5 h-2.5 md:w-3 md:h-3" />
-                <span className="hidden sm:inline">Paused</span>
-              </>
-            ) : isConnected ? (
-              <>
-                <Wifi className="w-2.5 h-2.5 md:w-3 md:h-3" />
-                <span className="hidden sm:inline">Live</span>
-              </>
-            ) : (
-              <>
-                <WifiOff className="w-2.5 h-2.5 md:w-3 md:h-3" />
-                <span className="hidden sm:inline">Offline</span>
-              </>
-            )}
-          </Badge>
+          {isPaused && (
+            <Badge variant="warning" className="gap-1 text-[10px] md:text-xs">
+              <Pause className="w-2.5 h-2.5 md:w-3 md:h-3" />
+              <span className="hidden sm:inline">Paused</span>
+            </Badge>
+          )}
           {logs.length > 0 && (
             <span className="text-[10px] md:text-xs text-muted">
               {filteredLogs.length}/{logs.length}
