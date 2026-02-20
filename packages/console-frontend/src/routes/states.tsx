@@ -17,12 +17,113 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useReducer, useState } from 'react'
 import type { StateItem } from '@/api'
 import { deleteStateItem, setStateItem, stateGroupsQuery, stateItemsQuery } from '@/api'
 import { Badge, Button, Input } from '@/components/ui/card'
 import { JsonViewer } from '@/components/ui/json-viewer'
 import { Pagination } from '@/components/ui/pagination'
+
+// --- addModal reducer ---
+interface AddModalState {
+  show: boolean
+  newKey: string
+  newValue: string
+  saving: boolean
+}
+type AddModalAction =
+  | { type: 'OPEN_ADD_MODAL' }
+  | { type: 'CLOSE_ADD_MODAL' }
+  | { type: 'SET_ADD_FORM'; key: string; value: string }
+  | { type: 'START_SAVE' }
+  | { type: 'SAVE_DONE' }
+
+const addModalInitial: AddModalState = { show: false, newKey: '', newValue: '', saving: false }
+
+function addModalReducer(state: AddModalState, action: AddModalAction): AddModalState {
+  switch (action.type) {
+    case 'OPEN_ADD_MODAL':
+      return { ...state, show: true }
+    case 'CLOSE_ADD_MODAL':
+      return { show: false, newKey: '', newValue: '', saving: false }
+    case 'SET_ADD_FORM':
+      return { ...state, newKey: action.key, newValue: action.value }
+    case 'START_SAVE':
+      return { ...state, saving: true }
+    case 'SAVE_DONE':
+      return { ...state, saving: false }
+    default:
+      return state
+  }
+}
+
+// --- edit reducer ---
+interface EditState {
+  editingItem: string | null
+  editValue: string
+}
+type EditAction =
+  | { type: 'OPEN_EDIT'; itemKey: string; value: string }
+  | { type: 'SET_EDIT_VALUE'; value: string }
+  | { type: 'CLOSE_EDIT' }
+
+const editInitial: EditState = { editingItem: null, editValue: '' }
+
+function editReducer(state: EditState, action: EditAction): EditState {
+  switch (action.type) {
+    case 'OPEN_EDIT':
+      return { editingItem: action.itemKey, editValue: action.value }
+    case 'SET_EDIT_VALUE':
+      return { ...state, editValue: action.value }
+    case 'CLOSE_EDIT':
+      return { editingItem: null, editValue: '' }
+    default:
+      return state
+  }
+}
+
+// --- filter reducer ---
+interface FilterState {
+  sortField: 'key' | 'type'
+  sortDirection: 'asc' | 'desc'
+}
+type FilterAction = { type: 'SET_SORT'; field: 'key' | 'type' }
+
+const filterInitial: FilterState = { sortField: 'key', sortDirection: 'asc' }
+
+function filterReducer(state: FilterState, action: FilterAction): FilterState {
+  switch (action.type) {
+    case 'SET_SORT':
+      if (state.sortField === action.field) {
+        return { ...state, sortDirection: state.sortDirection === 'asc' ? 'desc' : 'asc' }
+      }
+      return { sortField: action.field, sortDirection: 'asc' }
+    default:
+      return state
+  }
+}
+
+// --- pagination reducer ---
+interface PaginationState {
+  itemsPage: number
+  itemsPageSize: number
+}
+type PaginationAction =
+  | { type: 'SET_PAGE'; page: number }
+  | { type: 'SET_PAGE_SIZE'; pageSize: number }
+
+const paginationInitial: PaginationState = { itemsPage: 1, itemsPageSize: 50 }
+
+function paginationReducer(state: PaginationState, action: PaginationAction): PaginationState {
+  switch (action.type) {
+    case 'SET_PAGE':
+      return { ...state, itemsPage: action.page }
+    case 'SET_PAGE_SIZE':
+      return { ...state, itemsPageSize: action.pageSize }
+    default:
+      return state
+  }
+}
 
 export const Route = createFileRoute('/states')({
   component: StatesPage,
@@ -34,21 +135,19 @@ export const Route = createFileRoute('/states')({
 function StatesPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
-
   const [selectedItem, setSelectedItem] = useState<StateItem | null>(null)
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [newKey, setNewKey] = useState('')
-  const [newValue, setNewValue] = useState('')
-  const [saving, setSaving] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
-  const [editingItem, setEditingItem] = useState<string | null>(null)
-  const [editValue, setEditValue] = useState('')
-
-  const [sortField, setSortField] = useState<'key' | 'type'>('key')
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
-  const [itemsPage, setItemsPage] = useState(1)
-  const [itemsPageSize, setItemsPageSize] = useState(50)
   const [showMobileSidebar, setShowMobileSidebar] = useState(false)
+
+  const [addModal, dispatchAddModal] = useReducer(addModalReducer, addModalInitial)
+  const [editState, dispatchEdit] = useReducer(editReducer, editInitial)
+  const [filterState, dispatchFilter] = useReducer(filterReducer, filterInitial)
+  const [paginationState, dispatchPagination] = useReducer(paginationReducer, paginationInitial)
+
+  const { show: showAddModal, newKey, newValue, saving } = addModal
+  const { editingItem, editValue } = editState
+  const { sortField, sortDirection } = filterState
+  const { itemsPage, itemsPageSize } = paginationState
 
   const {
     data: groupsData,
@@ -90,13 +189,13 @@ function StatesPage() {
   const handleSelectGroup = (groupId: string) => {
     setSelectedGroupId(groupId)
     setSelectedItem(null)
-    setItemsPage(1)
+    dispatchPagination({ type: 'SET_PAGE', page: 1 })
   }
 
   const handleAddItem = async () => {
     if (!selectedGroupId || !newKey) return
 
-    setSaving(true)
+    dispatchAddModal({ type: 'START_SAVE' })
     try {
       let value: unknown = newValue
       try {
@@ -106,14 +205,12 @@ function StatesPage() {
       }
 
       await setStateItem(selectedGroupId, newKey, value)
-      setNewKey('')
-      setNewValue('')
-      setShowAddModal(false)
+      dispatchAddModal({ type: 'CLOSE_ADD_MODAL' })
       refetchItems()
     } catch {
       // Handle error
     } finally {
-      setSaving(false)
+      dispatchAddModal({ type: 'SAVE_DONE' })
     }
   }
 
@@ -134,7 +231,7 @@ function StatesPage() {
   const handleEditItem = async (item: StateItem) => {
     if (!selectedGroupId) return
 
-    setSaving(true)
+    dispatchAddModal({ type: 'START_SAVE' })
     try {
       let value: unknown = editValue
       try {
@@ -144,13 +241,12 @@ function StatesPage() {
       }
 
       await setStateItem(selectedGroupId, item.key, value)
-      setEditingItem(null)
-      setEditValue('')
+      dispatchEdit({ type: 'CLOSE_EDIT' })
       refetchItems()
     } catch {
       // Handle error
     } finally {
-      setSaving(false)
+      dispatchAddModal({ type: 'SAVE_DONE' })
     }
   }
 
@@ -175,17 +271,8 @@ function StatesPage() {
     return sortedItems.slice(start, start + itemsPageSize)
   }, [sortedItems, itemsPage, itemsPageSize])
 
-  useEffect(() => {
-    setItemsPage(1)
-  }, [])
-
   const toggleSort = (field: 'key' | 'type') => {
-    if (sortField === field) {
-      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))
-    } else {
-      setSortField(field)
-      setSortDirection('asc')
-    }
+    dispatchFilter({ type: 'SET_SORT', field })
   }
 
   return (
@@ -233,9 +320,14 @@ function StatesPage() {
 
       {/* Mobile sidebar overlay */}
       {showMobileSidebar && (
+        // biome-ignore lint/a11y/noStaticElementInteractions: click-away overlay with keyboard support
         <div
+          role="presentation"
           className="md:hidden fixed inset-0 z-40 bg-black/60"
           onClick={() => setShowMobileSidebar(false)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setShowMobileSidebar(false)
+          }}
         />
       )}
 
@@ -260,6 +352,7 @@ function StatesPage() {
             <div className="flex items-center justify-between md:hidden mb-2">
               <span className="text-xs font-semibold">State Groups</span>
               <button
+                type="button"
                 onClick={() => setShowMobileSidebar(false)}
                 className="p-1 hover:bg-dark-gray rounded"
               >
@@ -276,6 +369,7 @@ function StatesPage() {
               />
               {searchQuery && (
                 <button
+                  type="button"
                   onClick={() => setSearchQuery('')}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground"
                 >
@@ -305,6 +399,7 @@ function StatesPage() {
                 {filteredGroups.map((group) => (
                   <button
                     key={group.id}
+                    type="button"
                     onClick={() => handleSelectGroup(group.id)}
                     className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors rounded-md
                       ${
@@ -420,7 +515,7 @@ function StatesPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setShowAddModal(true)}
+                onClick={() => dispatchAddModal({ type: 'OPEN_ADD_MODAL' })}
                 className="h-7 text-xs gap-1.5"
               >
                 <Plus className="w-3 h-3" />
@@ -513,6 +608,7 @@ function StatesPage() {
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-1">
                                 <button
+                                  type="button"
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     copyToClipboard(JSON.stringify(item.value, null, 2), item.key)
@@ -527,6 +623,7 @@ function StatesPage() {
                                   )}
                                 </button>
                                 <button
+                                  type="button"
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     handleDeleteItem(item)
@@ -552,7 +649,7 @@ function StatesPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setShowAddModal(true)}
+                        onClick={() => dispatchAddModal({ type: 'OPEN_ADD_MODAL' })}
                         className="gap-1.5"
                       >
                         <Plus className="w-3 h-3" />
@@ -576,8 +673,10 @@ function StatesPage() {
                     totalPages={totalItemPages}
                     totalItems={sortedItems.length}
                     pageSize={itemsPageSize}
-                    onPageChange={setItemsPage}
-                    onPageSizeChange={setItemsPageSize}
+                    onPageChange={(page) => dispatchPagination({ type: 'SET_PAGE', page })}
+                    onPageSizeChange={(pageSize) =>
+                      dispatchPagination({ type: 'SET_PAGE_SIZE', pageSize })
+                    }
                     pageSizeOptions={[25, 50, 100]}
                   />
                 </div>
@@ -595,6 +694,7 @@ function StatesPage() {
                 <span className="font-mono text-sm font-medium truncate">{selectedItem.key}</span>
               </div>
               <button
+                type="button"
                 onClick={() => setSelectedItem(null)}
                 className="p-1 rounded hover:bg-dark-gray"
               >
@@ -623,6 +723,7 @@ function StatesPage() {
                       {editingItem === selectedItem.key ? (
                         <>
                           <button
+                            type="button"
                             onClick={() => handleEditItem(selectedItem)}
                             disabled={saving}
                             className="p-1 rounded hover:bg-dark-gray text-success"
@@ -630,10 +731,8 @@ function StatesPage() {
                             <Save className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={() => {
-                              setEditingItem(null)
-                              setEditValue('')
-                            }}
+                            type="button"
+                            onClick={() => dispatchEdit({ type: 'CLOSE_EDIT' })}
                             className="p-1 rounded hover:bg-dark-gray"
                           >
                             <X className="w-3.5 h-3.5" />
@@ -642,15 +741,20 @@ function StatesPage() {
                       ) : (
                         <>
                           <button
-                            onClick={() => {
-                              setEditingItem(selectedItem.key)
-                              setEditValue(JSON.stringify(selectedItem.value, null, 2))
-                            }}
+                            type="button"
+                            onClick={() =>
+                              dispatchEdit({
+                                type: 'OPEN_EDIT',
+                                itemKey: selectedItem.key,
+                                value: JSON.stringify(selectedItem.value, null, 2),
+                              })
+                            }
                             className="p-1 rounded hover:bg-dark-gray"
                           >
                             <Edit2 className="w-3.5 h-3.5 text-muted" />
                           </button>
                           <button
+                            type="button"
                             onClick={() =>
                               copyToClipboard(
                                 JSON.stringify(selectedItem.value, null, 2),
@@ -672,7 +776,9 @@ function StatesPage() {
                   {editingItem === selectedItem.key ? (
                     <textarea
                       value={editValue}
-                      onChange={(e) => setEditValue(e.target.value)}
+                      onChange={(e) =>
+                        dispatchEdit({ type: 'SET_EDIT_VALUE', value: e.target.value })
+                      }
                       className="w-full h-64 px-3 py-2 bg-dark-gray border border-border rounded-md font-mono text-xs resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                   ) : (
@@ -706,7 +812,8 @@ function StatesPage() {
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
               <h3 className="font-semibold">Add State Item</h3>
               <button
-                onClick={() => setShowAddModal(false)}
+                type="button"
+                onClick={() => dispatchAddModal({ type: 'CLOSE_ADD_MODAL' })}
                 className="p-1 rounded hover:bg-dark-gray"
               >
                 <X className="w-4 h-4" />
@@ -715,7 +822,7 @@ function StatesPage() {
 
             <div className="p-4 space-y-4">
               <div>
-                <label className="text-xs text-muted block mb-1.5">Group</label>
+                <span className="text-xs text-muted block mb-1.5">Group</span>
                 <div className="flex items-center gap-2 text-sm font-mono bg-dark-gray/50 px-3 py-2 rounded">
                   <Folder className="w-4 h-4 text-blue-400" />
                   <span className="text-blue-400">{selectedGroupId}</span>
@@ -723,20 +830,30 @@ function StatesPage() {
               </div>
 
               <div>
-                <label className="text-xs text-muted block mb-1.5">Key</label>
+                <label htmlFor="state-key" className="text-xs text-muted block mb-1.5">
+                  Key
+                </label>
                 <Input
+                  id="state-key"
                   value={newKey}
-                  onChange={(e) => setNewKey(e.target.value)}
+                  onChange={(e) =>
+                    dispatchAddModal({ type: 'SET_ADD_FORM', key: e.target.value, value: newValue })
+                  }
                   placeholder="item-key"
                   className="font-mono"
                 />
               </div>
 
               <div>
-                <label className="text-xs text-muted block mb-1.5">Value (JSON or string)</label>
+                <label htmlFor="state-value" className="text-xs text-muted block mb-1.5">
+                  Value (JSON or string)
+                </label>
                 <textarea
+                  id="state-value"
                   value={newValue}
-                  onChange={(e) => setNewValue(e.target.value)}
+                  onChange={(e) =>
+                    dispatchAddModal({ type: 'SET_ADD_FORM', key: newKey, value: e.target.value })
+                  }
                   placeholder='{"key": "value"}'
                   className="w-full h-32 px-3 py-2 bg-dark-gray border border-border rounded-md font-mono text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
@@ -744,7 +861,11 @@ function StatesPage() {
             </div>
 
             <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-border">
-              <Button variant="ghost" size="sm" onClick={() => setShowAddModal(false)}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => dispatchAddModal({ type: 'CLOSE_ADD_MODAL' })}
+              >
                 Cancel
               </Button>
               <Button

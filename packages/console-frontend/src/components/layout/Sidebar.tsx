@@ -6,7 +6,6 @@ import {
   Database,
   GitBranch,
   Layers,
-  LayoutDashboard,
   Menu,
   Server,
   Settings,
@@ -16,12 +15,10 @@ import {
   Zap,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useConfig } from '../../api/config-provider'
-import { healthQuery } from '../../api/queries'
-import type { HealthComponent } from '../../api/system/status'
+import type { HealthComponent } from '@/api'
+import { healthQuery, useConfig } from '@/api'
 
 const BASE_NAV_ITEMS = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Functions', href: '/functions', icon: Server },
   { name: 'Triggers', href: '/triggers', icon: Zap },
   { name: 'States', href: '/states', icon: Database },
@@ -32,19 +29,6 @@ const BASE_NAV_ITEMS = [
 ]
 
 const FLOW_NAV_ITEM = { name: 'Flow', href: '/flow', icon: Workflow }
-
-function IIILogo({ className = '' }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 28 27" fill="currentColor" className={className} aria-label="iii logo">
-      <rect x="0" y="0" width="4" height="4" rx="0.8" />
-      <rect x="12" y="0" width="4" height="4" rx="0.8" />
-      <rect x="24" y="0" width="4" height="4" rx="0.8" />
-      <rect x="0" y="7" width="4" height="20" rx="0.8" />
-      <rect x="12" y="7" width="4" height="20" rx="0.8" />
-      <rect x="24" y="7" width="4" height="20" rx="0.8" />
-    </svg>
-  )
-}
 
 function ComponentDetail({ name, details }: { name: string; details: Record<string, unknown> }) {
   switch (name) {
@@ -107,11 +91,6 @@ export function Sidebar() {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [showHealth])
 
-  // Close mobile menu on route change
-  useEffect(() => {
-    setIsMobileMenuOpen(false)
-  }, [])
-
   // Close mobile menu and health panel on escape key
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -141,7 +120,7 @@ export function Sidebar() {
       {/* Logo */}
       <div className="px-5 py-4 md:py-4.5 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <IIILogo className="w-6 h-6 text-white" />
+          <img src="/iii-white1.1.svg" alt="iii logo" className="w-6 h-6" />
           <div className="leading-tight">
             <span className="text-[10px] tracking-[0.15em] text-muted uppercase block">
               Developer
@@ -153,6 +132,7 @@ export function Sidebar() {
         </div>
         {/* Close button for mobile */}
         <button
+          type="button"
           onClick={() => setIsMobileMenuOpen(false)}
           className="lg:hidden p-2 rounded-lg hover:bg-dark-gray transition-colors"
           aria-label="Close menu"
@@ -283,7 +263,7 @@ export function Sidebar() {
       {/* Mobile Header Bar */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-40 h-14 bg-black border-b border-border flex items-center justify-between px-4">
         <div className="flex items-center gap-3">
-          <IIILogo className="w-5 h-5 text-white" />
+          <img src="/iii-white1.1.svg" alt="iii logo" className="w-5 h-5" />
           <span className="text-xs tracking-[0.15em] text-muted uppercase">iii Console</span>
         </div>
         <div className="flex items-center gap-3">
@@ -298,6 +278,7 @@ export function Sidebar() {
           />
           {/* Hamburger button */}
           <button
+            type="button"
             onClick={() => setIsMobileMenuOpen(true)}
             className="p-2 rounded-lg hover:bg-dark-gray transition-colors"
             aria-label="Open menu"
@@ -309,9 +290,14 @@ export function Sidebar() {
 
       {/* Mobile Overlay */}
       {isMobileMenuOpen && (
+        // biome-ignore lint/a11y/noStaticElementInteractions: click-away overlay with keyboard support
         <div
           className="lg:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+          role="presentation"
           onClick={() => setIsMobileMenuOpen(false)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setIsMobileMenuOpen(false)
+          }}
         />
       )}
 

@@ -315,10 +315,14 @@ export function TimeRangeFilter({
 
               <div className="space-y-2">
                 <div>
-                  <label className="text-[10px] text-[#5B5B5B] uppercase tracking-wider mb-1 block">
+                  <label
+                    htmlFor="time-range-start"
+                    className="text-[10px] text-[#5B5B5B] uppercase tracking-wider mb-1 block"
+                  >
                     Start
                   </label>
                   <Input
+                    id="time-range-start"
                     type="datetime-local"
                     value={customStart}
                     onChange={(e) => setCustomStart(e.target.value)}
@@ -327,10 +331,14 @@ export function TimeRangeFilter({
                 </div>
 
                 <div>
-                  <label className="text-[10px] text-[#5B5B5B] uppercase tracking-wider mb-1 block">
+                  <label
+                    htmlFor="time-range-end"
+                    className="text-[10px] text-[#5B5B5B] uppercase tracking-wider mb-1 block"
+                  >
                     End
                   </label>
                   <Input
+                    id="time-range-end"
                     type="datetime-local"
                     value={customEnd}
                     onChange={(e) => setCustomEnd(e.target.value)}
@@ -379,7 +387,17 @@ export function TimeRangeFilter({
       )}
 
       {/* Click-away handler */}
-      {isOpen && <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />}
+      {isOpen && (
+        // biome-ignore lint/a11y/noStaticElementInteractions: click-away overlay with keyboard support
+        <div
+          role="presentation"
+          className="fixed inset-0 z-40"
+          onClick={() => setIsOpen(false)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setIsOpen(false)
+          }}
+        />
+      )}
     </div>
   )
 }

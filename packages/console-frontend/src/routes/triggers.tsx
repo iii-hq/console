@@ -20,12 +20,160 @@ import {
   XCircle,
   Zap,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useMemo, useReducer } from 'react'
 import type { FunctionInfo, TriggerInfo } from '@/api'
 import { emitEvent, functionsQuery, triggerCron, triggersQuery } from '@/api'
 import { getConfig } from '@/api/config'
 import { Badge, Button, Input, Select } from '@/components/ui/card'
 import { JsonViewer } from '@/components/ui/json-viewer'
+
+// --- httpRequest reducer ---
+interface HttpRequestState {
+  httpMethod: string
+  pathParams: Record<string, string>
+  queryParams: Record<string, string>
+  requestBody: string
+}
+
+type HttpRequestAction =
+  | { type: 'SET_HTTP_METHOD'; method: string }
+  | { type: 'SET_PATH_PARAMS'; params: Record<string, string> }
+  | { type: 'UPDATE_PATH_PARAM'; param: string; value: string }
+  | { type: 'SET_QUERY_PARAMS'; params: Record<string, string> }
+  | { type: 'ADD_QUERY_PARAM'; key: string }
+  | { type: 'UPDATE_QUERY_PARAM_KEY'; oldKey: string; newKey: string; value: string }
+  | { type: 'UPDATE_QUERY_PARAM_VALUE'; key: string; value: string }
+  | { type: 'REMOVE_QUERY_PARAM'; key: string }
+  | { type: 'SET_REQUEST_BODY'; body: string }
+  | { type: 'RESET_HTTP'; method: string; pathParams: Record<string, string>; requestBody: string }
+
+const httpRequestInitial: HttpRequestState = {
+  httpMethod: 'GET',
+  pathParams: {},
+  queryParams: {},
+  requestBody: '{}',
+}
+
+function httpRequestReducer(state: HttpRequestState, action: HttpRequestAction): HttpRequestState {
+  switch (action.type) {
+    case 'SET_HTTP_METHOD':
+      return { ...state, httpMethod: action.method }
+    case 'SET_PATH_PARAMS':
+      return { ...state, pathParams: action.params }
+    case 'UPDATE_PATH_PARAM':
+      return { ...state, pathParams: { ...state.pathParams, [action.param]: action.value } }
+    case 'SET_QUERY_PARAMS':
+      return { ...state, queryParams: action.params }
+    case 'ADD_QUERY_PARAM': {
+      return { ...state, queryParams: { ...state.queryParams, [action.key]: '' } }
+    }
+    case 'UPDATE_QUERY_PARAM_KEY': {
+      const next = { ...state.queryParams }
+      delete next[action.oldKey]
+      next[action.newKey] = action.value
+      return { ...state, queryParams: next }
+    }
+    case 'UPDATE_QUERY_PARAM_VALUE':
+      return { ...state, queryParams: { ...state.queryParams, [action.key]: action.value } }
+    case 'REMOVE_QUERY_PARAM': {
+      const next = { ...state.queryParams }
+      delete next[action.key]
+      return { ...state, queryParams: next }
+    }
+    case 'SET_REQUEST_BODY':
+      return { ...state, requestBody: action.body }
+    case 'RESET_HTTP':
+      return {
+        ...state,
+        httpMethod: action.method,
+        pathParams: action.pathParams,
+        queryParams: {},
+        requestBody: action.requestBody,
+      }
+    default:
+      return state
+  }
+}
+
+// --- invoke reducer ---
+interface TriggerResult {
+  success: boolean
+  message: string
+  status?: number
+  duration?: number
+  data?: unknown
+}
+
+interface InvokeState {
+  invoking: boolean
+  triggerResult: TriggerResult | null
+}
+
+type InvokeAction =
+  | { type: 'START_INVOKE' }
+  | { type: 'SET_RESULT'; result: TriggerResult }
+  | { type: 'CLEAR_RESULT' }
+  | { type: 'INVOKE_DONE' }
+
+const invokeInitial: InvokeState = { invoking: false, triggerResult: null }
+
+function invokeReducer(state: InvokeState, action: InvokeAction): InvokeState {
+  switch (action.type) {
+    case 'START_INVOKE':
+      return { invoking: true, triggerResult: null }
+    case 'SET_RESULT':
+      return { ...state, triggerResult: action.result }
+    case 'CLEAR_RESULT':
+      return { ...state, triggerResult: null }
+    case 'INVOKE_DONE':
+      return { ...state, invoking: false }
+    default:
+      return state
+  }
+}
+
+// --- UI reducer ---
+interface TriggersUiState {
+  searchQuery: string
+  showSystem: boolean
+  selectedTrigger: TriggerInfo | null
+  copied: string | null
+  filterType: string | null
+  collapsedGroups: Set<string>
+  eventPayload: string
+}
+
+type TriggersUiAction =
+  | { type: 'SET_SEARCH_QUERY'; payload: string }
+  | { type: 'TOGGLE_SHOW_SYSTEM' }
+  | { type: 'SET_SELECTED_TRIGGER'; payload: TriggerInfo | null }
+  | { type: 'SET_COPIED'; payload: string | null }
+  | { type: 'SET_FILTER_TYPE'; payload: string | null }
+  | { type: 'TOGGLE_GROUP'; payload: string }
+  | { type: 'SET_EVENT_PAYLOAD'; payload: string }
+
+function triggersUiReducer(state: TriggersUiState, action: TriggersUiAction): TriggersUiState {
+  switch (action.type) {
+    case 'SET_SEARCH_QUERY':
+      return { ...state, searchQuery: action.payload }
+    case 'TOGGLE_SHOW_SYSTEM':
+      return { ...state, showSystem: !state.showSystem }
+    case 'SET_SELECTED_TRIGGER':
+      return { ...state, selectedTrigger: action.payload }
+    case 'SET_COPIED':
+      return { ...state, copied: action.payload }
+    case 'SET_FILTER_TYPE':
+      return { ...state, filterType: action.payload }
+    case 'TOGGLE_GROUP': {
+      const next = new Set(state.collapsedGroups)
+      if (next.has(action.payload)) next.delete(action.payload)
+      else next.add(action.payload)
+      return { ...state, collapsedGroups: next }
+    }
+    case 'SET_EVENT_PAYLOAD':
+      return { ...state, eventPayload: action.payload }
+  }
+}
 
 export const Route = createFileRoute('/triggers')({
   component: TriggersPage,
@@ -37,34 +185,31 @@ export const Route = createFileRoute('/triggers')({
   },
 })
 
-interface TriggerResult {
-  success: boolean
-  message: string
-  status?: number
-  duration?: number
-  data?: unknown
-}
-
 function TriggersPage() {
-  const [searchQuery, setSearchQuery] = useState('')
-  const [showSystem, setShowSystem] = useState(false)
-  const [selectedTrigger, setSelectedTrigger] = useState<TriggerInfo | null>(null)
-  const [copied, setCopied] = useState<string | null>(null)
-  const [filterType, setFilterType] = useState<string | null>(null)
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+  const [uiState, dispatchUi] = useReducer(triggersUiReducer, {
+    searchQuery: '',
+    showSystem: false,
+    selectedTrigger: null,
+    copied: null,
+    filterType: null,
+    collapsedGroups: new Set<string>(),
+    eventPayload: '{"test": true}',
+  })
+  const {
+    searchQuery,
+    showSystem,
+    selectedTrigger,
+    copied,
+    filterType,
+    collapsedGroups,
+    eventPayload,
+  } = uiState
 
-  // HTTP invoke state
-  const [httpMethod, setHttpMethod] = useState('GET')
-  const [pathParams, setPathParams] = useState<Record<string, string>>({})
-  const [queryParams, setQueryParams] = useState<Record<string, string>>({})
-  const [requestBody, setRequestBody] = useState('{}')
+  const [httpRequest, dispatchHttpRequest] = useReducer(httpRequestReducer, httpRequestInitial)
+  const { httpMethod, pathParams, queryParams, requestBody } = httpRequest
 
-  // Event emit state
-  const [eventPayload, setEventPayload] = useState('{"test": true}')
-
-  // Shared invoke state
-  const [invoking, setInvoking] = useState(false)
-  const [triggerResult, setTriggerResult] = useState<TriggerResult | null>(null)
+  const [invokeState, dispatchInvoke] = useReducer(invokeReducer, invokeInitial)
+  const { invoking, triggerResult } = invokeState
 
   const {
     data: triggersData,
@@ -142,12 +287,7 @@ function TriggersPage() {
   })
 
   const toggleGroup = (group: string) => {
-    setCollapsedGroups((prev) => {
-      const next = new Set(prev)
-      if (next.has(group)) next.delete(group)
-      else next.add(group)
-      return next
-    })
+    dispatchUi({ type: 'TOGGLE_GROUP', payload: group })
   }
 
   const loadData = () => {
@@ -157,8 +297,8 @@ function TriggersPage() {
 
   const copyToClipboard = (text: string, key: string) => {
     navigator.clipboard.writeText(text)
-    setCopied(key)
-    setTimeout(() => setCopied(null), 2000)
+    dispatchUi({ type: 'SET_COPIED', payload: key })
+    setTimeout(() => dispatchUi({ type: 'SET_COPIED', payload: null }), 2000)
   }
 
   const getTriggerIcon = (trigger: TriggerInfo) => {
@@ -270,32 +410,30 @@ function TriggersPage() {
 
   const handleSelectTrigger = (trigger: TriggerInfo) => {
     if (selectedTrigger?.id === trigger.id) {
-      setSelectedTrigger(null)
+      dispatchUi({ type: 'SET_SELECTED_TRIGGER', payload: null })
     } else {
-      setSelectedTrigger(trigger)
-      setTriggerResult(null)
+      dispatchUi({ type: 'SET_SELECTED_TRIGGER', payload: trigger })
+      dispatchInvoke({ type: 'CLEAR_RESULT' })
 
       if (trigger.trigger_type === 'http') {
         const config = trigger.config as { api_path?: string; http_method?: string }
-        setHttpMethod(config.http_method || 'GET')
+        const method = config.http_method || 'GET'
         const path = config.api_path || ''
         const matches = path.match(/:([a-zA-Z_]+)/g)
+        const pathParams: Record<string, string> = {}
         if (matches) {
-          const params: Record<string, string> = {}
-          matches.forEach((m) => (params[m.slice(1)] = ''))
-          setPathParams(params)
-        } else {
-          setPathParams({})
+          for (const m of matches) {
+            pathParams[m.slice(1)] = ''
+          }
         }
-        setQueryParams({})
-        const method = config.http_method || 'GET'
-        if (method === 'POST' || method === 'PUT') {
-          setRequestBody('{\n  \n}')
-        } else {
-          setRequestBody('{}')
-        }
+        dispatchHttpRequest({
+          type: 'RESET_HTTP',
+          method,
+          pathParams,
+          requestBody: method === 'POST' || method === 'PUT' ? '{\n  \n}' : '{}',
+        })
       } else if (trigger.trigger_type === 'event') {
-        setEventPayload('{"test": true}')
+        dispatchUi({ type: 'SET_EVENT_PAYLOAD', payload: '{"test": true}' })
       }
     }
   }
@@ -305,8 +443,7 @@ function TriggersPage() {
     let path = (config.api_path || '').replace(/^\//, '')
     const method = httpMethod || config.http_method || 'GET'
 
-    setInvoking(true)
-    setTriggerResult(null)
+    dispatchInvoke({ type: 'START_INVOKE' })
     const startTime = Date.now()
 
     try {
@@ -316,8 +453,11 @@ function TriggersPage() {
           const paramName = match.slice(1)
           const value = pathParams[paramName]
           if (!value) {
-            setTriggerResult({ success: false, message: `Missing path parameter: ${paramName}` })
-            setInvoking(false)
+            dispatchInvoke({
+              type: 'SET_RESULT',
+              result: { success: false, message: `Missing path parameter: ${paramName}` },
+            })
+            dispatchInvoke({ type: 'INVOKE_DONE' })
             return
           }
           path = path.replace(match, encodeURIComponent(value))
@@ -339,8 +479,11 @@ function TriggersPage() {
           JSON.parse(requestBody)
           fetchOptions.body = requestBody
         } catch {
-          setTriggerResult({ success: false, message: 'Invalid JSON in request body' })
-          setInvoking(false)
+          dispatchInvoke({
+            type: 'SET_RESULT',
+            result: { success: false, message: 'Invalid JSON in request body' },
+          })
+          dispatchInvoke({ type: 'INVOKE_DONE' })
           return
         }
       }
@@ -351,7 +494,7 @@ function TriggersPage() {
       const response = await fetch(fullUrl, fetchOptions)
       const duration = Date.now() - startTime
 
-      let data
+      let data: unknown
       const contentType = response.headers.get('content-type')
       if (contentType?.includes('application/json')) {
         data = await response.json()
@@ -359,61 +502,79 @@ function TriggersPage() {
         data = await response.text()
       }
 
-      setTriggerResult({
-        success: response.ok,
-        message: response.ok ? 'Request successful' : `HTTP ${response.status}`,
-        status: response.status,
-        duration,
-        data,
+      dispatchInvoke({
+        type: 'SET_RESULT',
+        result: {
+          success: response.ok,
+          message: response.ok ? 'Request successful' : `HTTP ${response.status}`,
+          status: response.status,
+          duration,
+          data,
+        },
       })
     } catch (err) {
-      setTriggerResult({
-        success: false,
-        message: err instanceof Error ? err.message : 'Request failed',
-        duration: Date.now() - startTime,
+      dispatchInvoke({
+        type: 'SET_RESULT',
+        result: {
+          success: false,
+          message: err instanceof Error ? err.message : 'Request failed',
+          duration: Date.now() - startTime,
+        },
       })
     } finally {
-      setInvoking(false)
+      dispatchInvoke({ type: 'INVOKE_DONE' })
     }
   }
 
   const invokeCron = async (trigger: TriggerInfo) => {
-    setInvoking(true)
-    setTriggerResult(null)
+    dispatchInvoke({ type: 'START_INVOKE' })
     try {
       const result = await triggerCron(trigger.id, trigger.function_id)
-      setTriggerResult({
-        success: result.success,
-        message: result.success
-          ? 'Cron job triggered successfully!'
-          : result.error || 'Failed to trigger',
+      dispatchInvoke({
+        type: 'SET_RESULT',
+        result: {
+          success: result.success,
+          message: result.success
+            ? 'Cron job triggered successfully!'
+            : result.error || 'Failed to trigger',
+        },
       })
     } catch (err) {
-      setTriggerResult({
-        success: false,
-        message: err instanceof Error ? err.message : 'Failed to trigger',
+      dispatchInvoke({
+        type: 'SET_RESULT',
+        result: {
+          success: false,
+          message: err instanceof Error ? err.message : 'Failed to trigger',
+        },
       })
     } finally {
-      setInvoking(false)
+      dispatchInvoke({ type: 'INVOKE_DONE' })
     }
   }
 
   const invokeEvent = async (trigger: TriggerInfo) => {
     const config = trigger.config as { topic?: string }
     const topic = config.topic || ''
-    setInvoking(true)
-    setTriggerResult(null)
+    dispatchInvoke({ type: 'START_INVOKE' })
     try {
       const payload = JSON.parse(eventPayload)
       const result = await emitEvent(topic, payload)
-      setTriggerResult({
-        success: result.success,
-        message: result.success ? `Event emitted to "${topic}"!` : result.error || 'Failed to emit',
+      dispatchInvoke({
+        type: 'SET_RESULT',
+        result: {
+          success: result.success,
+          message: result.success
+            ? `Event emitted to "${topic}"!`
+            : result.error || 'Failed to emit',
+        },
       })
     } catch {
-      setTriggerResult({ success: false, message: 'Invalid JSON payload' })
+      dispatchInvoke({
+        type: 'SET_RESULT',
+        result: { success: false, message: 'Invalid JSON payload' },
+      })
     } finally {
-      setInvoking(false)
+      dispatchInvoke({ type: 'INVOKE_DONE' })
     }
   }
 
@@ -436,7 +597,7 @@ function TriggersPage() {
           <Button
             variant={showSystem ? 'accent' : 'ghost'}
             size="sm"
-            onClick={() => setShowSystem(!showSystem)}
+            onClick={() => dispatchUi({ type: 'TOGGLE_SHOW_SYSTEM' })}
             className="h-6 md:h-7 text-[10px] md:text-xs px-2"
           >
             <span className={`hidden md:inline ${showSystem ? '' : 'line-through opacity-60'}`}>
@@ -462,13 +623,14 @@ function TriggersPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
           <Input
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => dispatchUi({ type: 'SET_SEARCH_QUERY', payload: e.target.value })}
             className="pl-9 pr-9 h-9"
             placeholder="Search triggers, functions, paths, topics..."
           />
           {searchQuery && (
             <button
-              onClick={() => setSearchQuery('')}
+              type="button"
+              onClick={() => dispatchUi({ type: 'SET_SEARCH_QUERY', payload: '' })}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground"
             >
               <X className="w-4 h-4" />
@@ -478,7 +640,8 @@ function TriggersPage() {
 
         <div className="flex items-center gap-1 px-2 border-l border-border">
           <button
-            onClick={() => setFilterType(null)}
+            type="button"
+            onClick={() => dispatchUi({ type: 'SET_FILTER_TYPE', payload: null })}
             className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium tracking-wider uppercase transition-colors ${
               !filterType
                 ? 'bg-white/10 text-foreground'
@@ -492,7 +655,13 @@ function TriggersPage() {
           </button>
           {typeCounts.http > 0 && (
             <button
-              onClick={() => setFilterType(filterType === 'http' ? null : 'http')}
+              type="button"
+              onClick={() =>
+                dispatchUi({
+                  type: 'SET_FILTER_TYPE',
+                  payload: filterType === 'http' ? null : 'http',
+                })
+              }
               className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium tracking-wider uppercase transition-colors ${
                 filterType === 'http'
                   ? 'bg-cyan-500/15 text-cyan-400'
@@ -506,7 +675,13 @@ function TriggersPage() {
           )}
           {typeCounts.cron > 0 && (
             <button
-              onClick={() => setFilterType(filterType === 'cron' ? null : 'cron')}
+              type="button"
+              onClick={() =>
+                dispatchUi({
+                  type: 'SET_FILTER_TYPE',
+                  payload: filterType === 'cron' ? null : 'cron',
+                })
+              }
               className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium tracking-wider uppercase transition-colors ${
                 filterType === 'cron'
                   ? 'bg-orange-500/15 text-orange-400'
@@ -520,7 +695,13 @@ function TriggersPage() {
           )}
           {typeCounts.event > 0 && (
             <button
-              onClick={() => setFilterType(filterType === 'event' ? null : 'event')}
+              type="button"
+              onClick={() =>
+                dispatchUi({
+                  type: 'SET_FILTER_TYPE',
+                  payload: filterType === 'event' ? null : 'event',
+                })
+              }
               className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium tracking-wider uppercase transition-colors ${
                 filterType === 'event'
                   ? 'bg-purple-500/15 text-purple-400'
@@ -534,7 +715,13 @@ function TriggersPage() {
           )}
           {typeCounts.other > 0 && (
             <button
-              onClick={() => setFilterType(filterType === 'other' ? null : 'other')}
+              type="button"
+              onClick={() =>
+                dispatchUi({
+                  type: 'SET_FILTER_TYPE',
+                  payload: filterType === 'other' ? null : 'other',
+                })
+              }
               className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium tracking-wider uppercase transition-colors ${
                 filterType === 'other'
                   ? 'bg-white/10 text-foreground'
@@ -572,6 +759,7 @@ function TriggersPage() {
             groups.map((group) => (
               <div key={group}>
                 <button
+                  type="button"
                   onClick={() => toggleGroup(group)}
                   className="flex items-center gap-2 mb-3 cursor-pointer hover:opacity-80 transition-opacity"
                 >
@@ -592,10 +780,11 @@ function TriggersPage() {
                       const fn = getFunction(trigger.function_id)
 
                       return (
-                        <div
+                        <button
                           key={trigger.id}
+                          type="button"
                           onClick={() => handleSelectTrigger(trigger)}
-                          className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all
+                          className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all w-full text-left
                             ${
                               isSelected
                                 ? 'bg-primary/10 border border-primary/30 ring-1 ring-primary/20'
@@ -630,7 +819,7 @@ function TriggersPage() {
                           <ChevronRight
                             className={`w-4 h-4 text-muted shrink-0 transition-transform ${isSelected ? 'rotate-90' : ''}`}
                           />
-                        </div>
+                        </button>
                       )
                     })}
                   </div>
@@ -659,6 +848,7 @@ function TriggersPage() {
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <button
+                    type="button"
                     onClick={() => copyToClipboard(selectedTrigger.id, 'id')}
                     className="p-1.5 hover:bg-dark-gray rounded transition-colors"
                     title="Copy trigger ID"
@@ -672,7 +862,7 @@ function TriggersPage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setSelectedTrigger(null)}
+                    onClick={() => dispatchUi({ type: 'SET_SELECTED_TRIGGER', payload: null })}
                     className="h-7 w-7 md:h-6 md:w-6 p-0"
                   >
                     <X className="w-4 h-4" />
@@ -707,6 +897,7 @@ function TriggersPage() {
                             {getConfig().engineHost}:{getConfig().enginePort}/{apiPath}
                           </code>
                           <button
+                            type="button"
                             onClick={() => {
                               const { engineHost, enginePort } = getConfig()
                               copyToClipboard(
@@ -734,7 +925,12 @@ function TriggersPage() {
                           <div className="flex items-center gap-2">
                             <Select
                               value={httpMethod}
-                              onChange={(e) => setHttpMethod(e.target.value)}
+                              onChange={(e) =>
+                                dispatchHttpRequest({
+                                  type: 'SET_HTTP_METHOD',
+                                  method: e.target.value,
+                                })
+                              }
                               className="w-24 h-8 text-xs"
                             >
                               <option value="GET">GET</option>
@@ -755,16 +951,21 @@ function TriggersPage() {
                               </div>
                               {Object.keys(pathParams).map((param) => (
                                 <div key={param} className="flex items-center gap-2">
-                                  <label className="text-xs font-mono text-orange-400 w-20 shrink-0">
+                                  <label
+                                    htmlFor={`path-param-${param}`}
+                                    className="text-xs font-mono text-orange-400 w-20 shrink-0"
+                                  >
                                     :{param}
                                   </label>
                                   <Input
+                                    id={`path-param-${param}`}
                                     value={pathParams[param]}
                                     onChange={(e) =>
-                                      setPathParams((prev) => ({
-                                        ...prev,
-                                        [param]: e.target.value,
-                                      }))
+                                      dispatchHttpRequest({
+                                        type: 'UPDATE_PATH_PARAM',
+                                        param,
+                                        value: e.target.value,
+                                      })
                                     }
                                     placeholder={`Enter ${param}`}
                                     className="h-8 text-xs font-mono"
@@ -781,11 +982,12 @@ function TriggersPage() {
                                   Query Parameters
                                 </div>
                                 <button
+                                  type="button"
                                   onClick={() =>
-                                    setQueryParams((prev) => ({
-                                      ...prev,
-                                      [`param${Object.keys(prev).length + 1}`]: '',
-                                    }))
+                                    dispatchHttpRequest({
+                                      type: 'ADD_QUERY_PARAM',
+                                      key: `param${Object.keys(queryParams).length + 1}`,
+                                    })
                                   }
                                   className="text-[10px] text-cyan-400 hover:text-cyan-300"
                                 >
@@ -797,16 +999,18 @@ function TriggersPage() {
                                   No query parameters
                                 </div>
                               ) : (
-                                Object.entries(queryParams).map(([key, value], idx) => (
-                                  <div key={idx} className="flex items-center gap-2">
+                                Object.entries(queryParams).map(([key, value]) => (
+                                  <div key={key} className="flex items-center gap-2">
                                     <Input
                                       value={key}
-                                      onChange={(e) => {
-                                        const newParams = { ...queryParams }
-                                        delete newParams[key]
-                                        newParams[e.target.value] = value
-                                        setQueryParams(newParams)
-                                      }}
+                                      onChange={(e) =>
+                                        dispatchHttpRequest({
+                                          type: 'UPDATE_QUERY_PARAM_KEY',
+                                          oldKey: key,
+                                          newKey: e.target.value,
+                                          value,
+                                        })
+                                      }
                                       placeholder="key"
                                       className="h-7 text-xs font-mono w-24"
                                     />
@@ -814,20 +1018,20 @@ function TriggersPage() {
                                     <Input
                                       value={value}
                                       onChange={(e) =>
-                                        setQueryParams((prev) => ({
-                                          ...prev,
-                                          [key]: e.target.value,
-                                        }))
+                                        dispatchHttpRequest({
+                                          type: 'UPDATE_QUERY_PARAM_VALUE',
+                                          key,
+                                          value: e.target.value,
+                                        })
                                       }
                                       placeholder="value"
                                       className="h-7 text-xs font-mono flex-1"
                                     />
                                     <button
-                                      onClick={() => {
-                                        const newParams = { ...queryParams }
-                                        delete newParams[key]
-                                        setQueryParams(newParams)
-                                      }}
+                                      type="button"
+                                      onClick={() =>
+                                        dispatchHttpRequest({ type: 'REMOVE_QUERY_PARAM', key })
+                                      }
                                       className="p-1 text-muted hover:text-error"
                                     >
                                       <X className="w-3 h-3" />
@@ -847,7 +1051,12 @@ function TriggersPage() {
                               </div>
                               <textarea
                                 value={requestBody}
-                                onChange={(e) => setRequestBody(e.target.value)}
+                                onChange={(e) =>
+                                  dispatchHttpRequest({
+                                    type: 'SET_REQUEST_BODY',
+                                    body: e.target.value,
+                                  })
+                                }
                                 className="w-full h-24 text-xs font-mono bg-black/40 text-foreground px-3 py-2 rounded border border-border focus:border-primary focus:outline-none resize-none"
                                 placeholder='{"key": "value"}'
                               />
@@ -1021,7 +1230,9 @@ function TriggersPage() {
                             className="w-full h-24 text-xs font-mono bg-black/40 text-foreground px-3 py-2 rounded border border-border focus:border-primary focus:outline-none resize-none"
                             placeholder='{"test": "data"}'
                             value={eventPayload}
-                            onChange={(e) => setEventPayload(e.target.value)}
+                            onChange={(e) =>
+                              dispatchUi({ type: 'SET_EVENT_PAYLOAD', payload: e.target.value })
+                            }
                           />
                           <Button
                             className="w-full h-9"

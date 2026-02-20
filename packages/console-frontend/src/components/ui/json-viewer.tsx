@@ -69,6 +69,7 @@ function JsonValue({
     return (
       <span>
         <button
+          type="button"
           onClick={() => setIsCollapsed(!isCollapsed)}
           className="inline-flex items-center hover:bg-dark-gray/50 rounded px-0.5 -ml-0.5"
         >
@@ -82,8 +83,8 @@ function JsonValue({
         {isCollapsed ? (
           <span className="text-muted italic">{value.length} items</span>
         ) : (
-          value.map((item, i) => (
-            <div key={i} style={{ paddingLeft: '1rem' }}>
+          [...value.entries()].map(([i, item]) => (
+            <div key={`arr-${i}`} style={{ paddingLeft: '1rem' }}>
               <JsonValue
                 value={item}
                 depth={depth + 1}
@@ -117,6 +118,7 @@ function JsonValue({
     return (
       <span>
         <button
+          type="button"
           onClick={() => setIsCollapsed(!isCollapsed)}
           className="inline-flex items-center hover:bg-dark-gray/50 rounded px-0.5 -ml-0.5"
         >
@@ -171,6 +173,7 @@ export function JsonViewer({
   return (
     <div className={`relative group ${className}`}>
       <button
+        type="button"
         onClick={copyToClipboard}
         className="absolute right-2 top-2 p-1.5 rounded bg-dark-gray/80 border border-border opacity-0 group-hover:opacity-100 transition-opacity hover:bg-dark-gray"
         title="Copy JSON"

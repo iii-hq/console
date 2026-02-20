@@ -45,7 +45,7 @@ function calculateDepths(spans: StoredSpan[]): Map<string, number> {
 
   function getDepth(span: StoredSpan): number {
     if (depths.has(span.span_id)) {
-      return depths.get(span.span_id)!
+      return depths.get(span.span_id) ?? 0
     }
 
     if (!span.parent_span_id || !spanMap.has(span.parent_span_id)) {
@@ -53,7 +53,8 @@ function calculateDepths(spans: StoredSpan[]): Map<string, number> {
       return 0
     }
 
-    const parentDepth = getDepth(spanMap.get(span.parent_span_id)!)
+    const parentSpan = spanMap.get(span.parent_span_id)
+    const parentDepth = parentSpan ? getDepth(parentSpan) : 0
     const depth = parentDepth + 1
     depths.set(span.span_id, depth)
     return depth

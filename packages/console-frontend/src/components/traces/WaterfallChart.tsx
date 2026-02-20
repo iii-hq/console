@@ -1,5 +1,5 @@
 import { ChevronRight } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type { VisualizationSpan, WaterfallData } from '@/lib/traceTransform'
 import { formatDuration } from '@/lib/traceUtils'
 
@@ -29,7 +29,8 @@ function buildSpanTree(spans: VisualizationSpan[]): SpanNode[] {
   })
 
   spans.forEach((span) => {
-    const node = spanMap.get(span.span_id)!
+    const node = spanMap.get(span.span_id)
+    if (!node) return
     if (span.parent_span_id && spanMap.has(span.parent_span_id)) {
       spanMap.get(span.parent_span_id)?.children.push(node)
     } else {
@@ -88,12 +89,104 @@ function flattenTree(nodes: SpanNode[], expandedIds: Set<string>): SpanNode[] {
   return result
 }
 
+interface DisplayState {
+  expandedIds: Set<string>
+  showCriticalPath: boolean
+  hoveredSpanId: string | null
+  scrollPosition: number
+}
+
+type DisplayAction =
+  | { type: 'TOGGLE_SPAN'; spanId: string }
+  | { type: 'SET_ALL_EXPANDED'; ids: Set<string> }
+  | { type: 'SET_CRITICAL_PATH'; value: boolean }
+  | { type: 'SET_HOVERED_SPAN'; spanId: string | null }
+  | { type: 'SET_SCROLL'; position: number }
+
+const initialDisplayState: DisplayState = {
+  expandedIds: new Set(),
+  showCriticalPath: false,
+  hoveredSpanId: null,
+  scrollPosition: 0,
+}
+
+function displayReducer(state: DisplayState, action: DisplayAction): DisplayState {
+  switch (action.type) {
+    case 'TOGGLE_SPAN': {
+      const next = new Set(state.expandedIds)
+      if (next.has(action.spanId)) {
+        next.delete(action.spanId)
+      } else {
+        next.add(action.spanId)
+      }
+      return { ...state, expandedIds: next }
+    }
+    case 'SET_ALL_EXPANDED':
+      return { ...state, expandedIds: action.ids }
+    case 'SET_CRITICAL_PATH':
+      return { ...state, showCriticalPath: action.value }
+    case 'SET_HOVERED_SPAN':
+      return { ...state, hoveredSpanId: action.spanId }
+    case 'SET_SCROLL':
+      return { ...state, scrollPosition: action.position }
+  }
+}
+
 export function WaterfallChart({ data, onSpanClick, selectedSpanId }: WaterfallChartProps) {
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
-  const [showCriticalPath, setShowCriticalPath] = useState(false)
-  const [hoveredSpanId, setHoveredSpanId] = useState<string | null>(null)
+  const [displayState, dispatch] = useReducer(displayReducer, initialDisplayState)
+  const { expandedIds, showCriticalPath, hoveredSpanId, scrollPosition } = displayState
   const containerRef = useRef<HTMLDivElement>(null)
-  const [scrollPosition, setScrollPosition] = useState(0)
+
+  // Span column resize
+  const [spanColWidth, setSpanColWidth] = useState(() => {
+    const saved = localStorage.getItem('iii-span-col-width')
+    return saved ? Number.parseInt(saved, 10) : 300
+  })
+  const colResizeRef = useRef<{ startX: number; startWidth: number } | null>(null)
+  const spanColWidthRef = useRef(spanColWidth)
+  spanColWidthRef.current = spanColWidth
+
+  useEffect(() => {
+    localStorage.setItem('iii-span-col-width', String(spanColWidth))
+  }, [spanColWidth])
+
+  useEffect(() => {
+    let rafId: number | null = null
+    const onMouseMove = (e: MouseEvent) => {
+      if (!colResizeRef.current) return
+      if (rafId !== null) return
+      rafId = requestAnimationFrame(() => {
+        rafId = null
+        if (!colResizeRef.current) return
+        const diff = e.clientX - colResizeRef.current.startX
+        setSpanColWidth(Math.min(Math.max(colResizeRef.current.startWidth + diff, 150), 600))
+      })
+    }
+    const onMouseUp = () => {
+      if (!colResizeRef.current) return
+      colResizeRef.current = null
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId)
+        rafId = null
+      }
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+      if (rafId !== null) cancelAnimationFrame(rafId)
+    }
+  }, [])
+
+  const startColResize = (e: React.MouseEvent) => {
+    e.preventDefault()
+    colResizeRef.current = { startX: e.clientX, startWidth: spanColWidthRef.current }
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+  }
 
   const totalMs = data.total_duration_ms || 1
   const rulerMarks = [0, 25, 50, 75, 100].map((pct) => ({
@@ -105,34 +198,26 @@ export function WaterfallChart({ data, onSpanClick, selectedSpanId }: WaterfallC
 
   useEffect(() => {
     const allIds = new Set(data.spans.map((s) => s.span_id))
-    setExpandedIds(allIds)
+    dispatch({ type: 'SET_ALL_EXPANDED', ids: allIds })
   }, [data.spans])
 
   const visibleSpans = useMemo(() => flattenTree(spanTree, expandedIds), [spanTree, expandedIds])
 
   const toggleExpand = (spanId: string) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(spanId)) {
-        next.delete(spanId)
-      } else {
-        next.add(spanId)
-      }
-      return next
-    })
+    dispatch({ type: 'TOGGLE_SPAN', spanId })
   }
 
   const expandAll = () => {
-    setExpandedIds(new Set(data.spans.map((s) => s.span_id)))
+    dispatch({ type: 'SET_ALL_EXPANDED', ids: new Set(data.spans.map((s) => s.span_id)) })
   }
 
   const collapseAll = () => {
-    setExpandedIds(new Set())
+    dispatch({ type: 'SET_ALL_EXPANDED', ids: new Set() })
   }
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const target = e.target as HTMLDivElement
-    setScrollPosition(target.scrollTop)
+    dispatch({ type: 'SET_SCROLL', position: target.scrollTop })
   }
 
   const miniMapHeight = 80
@@ -165,7 +250,7 @@ export function WaterfallChart({ data, onSpanClick, selectedSpanId }: WaterfallC
             <input
               type="checkbox"
               checked={showCriticalPath}
-              onChange={(e) => setShowCriticalPath(e.target.checked)}
+              onChange={(e) => dispatch({ type: 'SET_CRITICAL_PATH', value: e.target.checked })}
               className="rounded border-[#1D1D1D] bg-[#141414] text-[#F3F724] focus:ring-[#F3F724]/30"
             />
             Show critical path
@@ -176,8 +261,28 @@ export function WaterfallChart({ data, onSpanClick, selectedSpanId }: WaterfallC
         </div>
       </div>
 
-      <div className="grid grid-cols-[300px_1fr] gap-4 px-3 py-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wide border-b border-[#1D1D1D] bg-[#141414]/50">
-        <span>Span</span>
+      <div
+        className="grid gap-4 px-3 py-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wide border-b border-[#1D1D1D] bg-[#141414]/50"
+        style={{ gridTemplateColumns: `${spanColWidth}px 1fr` }}
+      >
+        <div className="flex items-center relative">
+          <span>Span</span>
+          <div
+            role="slider"
+            aria-label="Resize span column"
+            aria-orientation="horizontal"
+            aria-valuemin={150}
+            aria-valuemax={600}
+            aria-valuenow={spanColWidth}
+            tabIndex={0}
+            onMouseDown={startColResize}
+            onDoubleClick={() => setSpanColWidth(300)}
+            className="absolute right-[-11px] top-0 bottom-0 w-[7px] cursor-col-resize z-10 group"
+            title="Drag to resize, double-click to reset"
+          >
+            <div className="absolute left-[3px] top-0 bottom-0 w-[1px] bg-[#1D1D1D] group-hover:bg-accent/50 transition-colors" />
+          </div>
+        </div>
         <div className="flex justify-between">
           {rulerMarks.map(({ pct, label }) => (
             <span key={pct} className="font-mono">
@@ -202,7 +307,7 @@ export function WaterfallChart({ data, onSpanClick, selectedSpanId }: WaterfallC
               unset: '#6B7280',
             }
 
-            let barStyle
+            let barStyle: React.CSSProperties
             if (isCritical) {
               barStyle = { background: 'linear-gradient(to right, #F97316, #FB923C)' }
             } else if (span.status === 'error') {
@@ -214,21 +319,26 @@ export function WaterfallChart({ data, onSpanClick, selectedSpanId }: WaterfallC
             }
 
             return (
-              <div
+              <button
                 key={span.span_id}
+                type="button"
                 className={`
-                  grid grid-cols-[300px_1fr] gap-4 px-3 py-1 items-center transition-colors cursor-pointer
+                  grid gap-4 px-3 py-1 items-center transition-colors cursor-pointer w-full text-left
                   ${isSelected ? 'bg-[#F3F724]/[0.06] border-l-2 border-l-[#F3F724]' : isHovered ? 'bg-[#1D1D1D]' : 'hover:bg-[#1D1D1D]/50'}
                   ${isCritical && !isSelected ? 'bg-orange-500/5' : ''}
                 `}
+                style={{ gridTemplateColumns: `${spanColWidth}px 1fr` }}
                 onClick={() => onSpanClick(span)}
-                onMouseEnter={() => setHoveredSpanId(span.span_id)}
-                onMouseLeave={() => setHoveredSpanId(null)}
+                onMouseEnter={() => dispatch({ type: 'SET_HOVERED_SPAN', spanId: span.span_id })}
+                onMouseLeave={() => dispatch({ type: 'SET_HOVERED_SPAN', spanId: null })}
               >
                 <div className="flex items-center gap-1.5 min-w-0">
                   <div className="flex-shrink-0 flex" style={{ width: span.depth * 16 }}>
                     {Array.from({ length: span.depth }).map((_, i) => (
-                      <div key={i} className="w-4 h-6 border-l border-[#1D1D1D]/50" />
+                      <div
+                        key={`${span.span_id}-indent-${i}`}
+                        className="w-4 h-6 border-l border-[#1D1D1D]/50"
+                      />
                     ))}
                   </div>
 
@@ -279,7 +389,7 @@ export function WaterfallChart({ data, onSpanClick, selectedSpanId }: WaterfallC
                     }}
                   />
                 </div>
-              </div>
+              </button>
             )
           })}
         </div>

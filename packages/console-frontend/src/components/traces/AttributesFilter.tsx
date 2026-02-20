@@ -1,7 +1,7 @@
 'use client'
 
 import { Check, Plus, Tag, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 interface AttributesFilterProps {
   value: [string, string][]
@@ -18,47 +18,54 @@ const COMMON_ATTRIBUTES = [
   'thread.name',
 ]
 
+let _entryId = 0
+type DraftEntry = { id: number; key: string; val: string }
+
+const toDraftEntries = (pairs: [string, string][]): DraftEntry[] =>
+  pairs.map(([key, val]) => ({ id: ++_entryId, key, val }))
+
+const toValuePairs = (entries: DraftEntry[]): [string, string][] =>
+  entries.map(({ key, val }) => [key, val])
+
 export function AttributesFilter({ value, onChange }: AttributesFilterProps) {
-  const [draft, setDraft] = useState<[string, string][]>(value)
+  const [draft, setDraft] = useState<DraftEntry[]>(() => toDraftEntries(value))
   const [isDirty, setIsDirty] = useState(false)
+  const [prevValue, setPrevValue] = useState(value)
 
-  useEffect(() => {
-    setDraft(value)
+  if (prevValue !== value) {
+    setPrevValue(value)
+    setDraft(toDraftEntries(value))
     setIsDirty(false)
-  }, [value])
+  }
 
-  const updateDraft = (newDraft: [string, string][]) => {
+  const updateDraft = (newDraft: DraftEntry[]) => {
     setDraft(newDraft)
     setIsDirty(true)
   }
 
   const handleAdd = () => {
-    updateDraft([...draft, ['', '']])
+    updateDraft([...draft, { id: ++_entryId, key: '', val: '' }])
   }
 
-  const handleRemove = (index: number) => {
-    updateDraft(draft.filter((_, i) => i !== index))
+  const handleRemove = (id: number) => {
+    updateDraft(draft.filter((e) => e.id !== id))
   }
 
-  const handleKeyChange = (index: number, key: string) => {
-    const newAttrs = [...draft]
-    newAttrs[index] = [key, newAttrs[index][1]]
-    updateDraft(newAttrs)
+  const handleKeyChange = (id: number, key: string) => {
+    updateDraft(draft.map((e) => (e.id === id ? { ...e, key } : e)))
   }
 
-  const handleValueChange = (index: number, val: string) => {
-    const newAttrs = [...draft]
-    newAttrs[index] = [newAttrs[index][0], val]
-    updateDraft(newAttrs)
+  const handleValueChange = (id: number, val: string) => {
+    updateDraft(draft.map((e) => (e.id === id ? { ...e, val } : e)))
   }
 
   const handleSuggestionClick = (key: string) => {
-    updateDraft([...draft, [key, '']])
+    updateDraft([...draft, { id: ++_entryId, key, val: '' }])
   }
 
   const handleApply = () => {
-    const filtered = draft.filter(([k]) => k.trim() !== '')
-    onChange(filtered)
+    const filtered = draft.filter(({ key }) => key.trim() !== '')
+    onChange(toValuePairs(filtered))
     setIsDirty(false)
   }
 
@@ -76,16 +83,16 @@ export function AttributesFilter({ value, onChange }: AttributesFilterProps) {
         </div>
       ) : (
         <div className="space-y-2">
-          {draft.map(([key, val], index) => (
+          {draft.map(({ id, key, val }) => (
             <div
-              key={`${index}-${key}`}
+              key={id}
               className="group flex items-center gap-2 bg-[#0A0A0A] border border-[#1D1D1D] rounded-md p-2 hover:border-[#2D2D2D] transition-colors"
             >
               <input
                 type="text"
                 placeholder="key"
                 value={key}
-                onChange={(e) => handleKeyChange(index, e.target.value)}
+                onChange={(e) => handleKeyChange(id, e.target.value)}
                 onKeyDown={handleKeyDown}
                 className="flex-1 bg-transparent border-none text-xs text-[#F4F4F4] placeholder-[#5B5B5B] focus:outline-none font-mono"
               />
@@ -94,13 +101,13 @@ export function AttributesFilter({ value, onChange }: AttributesFilterProps) {
                 type="text"
                 placeholder="value"
                 value={val}
-                onChange={(e) => handleValueChange(index, e.target.value)}
+                onChange={(e) => handleValueChange(id, e.target.value)}
                 onKeyDown={handleKeyDown}
                 className="flex-1 bg-transparent border-none text-xs text-[#F4F4F4] placeholder-[#5B5B5B] focus:outline-none font-mono"
               />
               <button
                 type="button"
-                onClick={() => handleRemove(index)}
+                onClick={() => handleRemove(id)}
                 className="p-1 text-[#5B5B5B] hover:text-red-400 hover:bg-[#141414] rounded transition-all opacity-0 group-hover:opacity-100"
                 title="Remove"
               >

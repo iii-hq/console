@@ -32,13 +32,15 @@ declare module '@tanstack/react-router' {
 // Only show devtools in non-binary builds
 const showDevtools = import.meta.env.MODE !== 'binary'
 
-createRoot(document.getElementById('root')!).render(
+const rootElement = document.getElementById('root')
+if (!rootElement) throw new Error('Root element not found')
+createRoot(rootElement).render(
   <StrictMode>
-    <ConfigProvider>
-      <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={queryClient}>
+      <ConfigProvider>
         <RouterProvider router={router} />
         {showDevtools && <ReactQueryDevtools initialIsOpen={false} />}
-      </QueryClientProvider>
-    </ConfigProvider>
+      </ConfigProvider>
+    </QueryClientProvider>
   </StrictMode>,
 )

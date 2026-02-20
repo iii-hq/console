@@ -245,7 +245,7 @@ function buildFlow(flowId: string, functions: NormalizedFunction[]): FlowRespons
 
   const deduped = new Map<string, NormalizedFunction>()
   for (const f of valid) {
-    const key = f.metadata!.filePath!
+    const key = f.metadata?.filePath ?? ''
     if (!deduped.has(key)) deduped.set(key, f)
   }
 

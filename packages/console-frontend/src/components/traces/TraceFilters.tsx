@@ -14,13 +14,13 @@ import {
   X,
   XCircle,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useReducer, useRef, useState } from 'react'
 import type { TraceFilterState } from '@/hooks/useTraceFilters'
 import { AttributesFilter } from './AttributesFilter'
 
 interface TraceFiltersProps {
   filters: TraceFilterState
-  onFilterChange: (key: string, value: unknown) => void
+  onFilterChange: (key: keyof TraceFilterState, value: unknown) => void
   onClear: () => void
   validationWarnings?: {
     durationSwapped?: boolean
@@ -60,6 +60,60 @@ const statusOptions = [
 
 type PopoverType = 'status' | 'timeRange' | 'duration' | 'service' | 'operation' | 'sort' | null
 
+// --- Temp Inputs Reducer ---
+interface TempInputsState {
+  tempServiceName: string
+  tempOperationName: string
+  tempMinDuration: string
+  tempMaxDuration: string
+}
+
+type TempInputsAction =
+  | { type: 'SET_SERVICE_NAME'; payload: string }
+  | { type: 'SET_OPERATION_NAME'; payload: string }
+  | { type: 'SET_MIN_DURATION'; payload: string }
+  | { type: 'SET_MAX_DURATION'; payload: string }
+  | { type: 'CLEAR_DURATION' }
+  | { type: 'CLEAR_SERVICE_NAME' }
+  | { type: 'CLEAR_OPERATION_NAME' }
+  | {
+      type: 'SYNC_FROM_FILTERS'
+      payload: {
+        serviceName?: string
+        operationName?: string
+        minDurationMs?: number | null
+        maxDurationMs?: number | null
+      }
+    }
+
+function tempInputsReducer(state: TempInputsState, action: TempInputsAction): TempInputsState {
+  switch (action.type) {
+    case 'SET_SERVICE_NAME':
+      return { ...state, tempServiceName: action.payload }
+    case 'SET_OPERATION_NAME':
+      return { ...state, tempOperationName: action.payload }
+    case 'SET_MIN_DURATION':
+      return { ...state, tempMinDuration: action.payload }
+    case 'SET_MAX_DURATION':
+      return { ...state, tempMaxDuration: action.payload }
+    case 'CLEAR_DURATION':
+      return { ...state, tempMinDuration: '', tempMaxDuration: '' }
+    case 'CLEAR_SERVICE_NAME':
+      return { ...state, tempServiceName: '' }
+    case 'CLEAR_OPERATION_NAME':
+      return { ...state, tempOperationName: '' }
+    case 'SYNC_FROM_FILTERS':
+      return {
+        tempServiceName: action.payload.serviceName || '',
+        tempOperationName: action.payload.operationName || '',
+        tempMinDuration: action.payload.minDurationMs?.toString() || '',
+        tempMaxDuration: action.payload.maxDurationMs?.toString() || '',
+      }
+    default:
+      return state
+  }
+}
+
 function useClickOutside(ref: React.RefObject<HTMLElement | null>, onClickOutside: () => void) {
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -97,18 +151,43 @@ export function TraceFilters({
   const [showAttributesPanel, setShowAttributesPanel] = useState(false)
 
   // Temporary state for text inputs
-  const [tempServiceName, setTempServiceName] = useState(filters.serviceName || '')
-  const [tempOperationName, setTempOperationName] = useState(filters.operationName || '')
-  const [tempMinDuration, setTempMinDuration] = useState(filters.minDurationMs?.toString() || '')
-  const [tempMaxDuration, setTempMaxDuration] = useState(filters.maxDurationMs?.toString() || '')
+  const [tempInputs, dispatchTempInputs] = useReducer(tempInputsReducer, {
+    tempServiceName: filters.serviceName || '',
+    tempOperationName: filters.operationName || '',
+    tempMinDuration: filters.minDurationMs?.toString() || '',
+    tempMaxDuration: filters.maxDurationMs?.toString() || '',
+  })
+  const { tempServiceName, tempOperationName, tempMinDuration, tempMaxDuration } = tempInputs
 
-  // Sync temp state when filters change externally
-  useEffect(() => {
-    setTempServiceName(filters.serviceName || '')
-    setTempOperationName(filters.operationName || '')
-    setTempMinDuration(filters.minDurationMs?.toString() || '')
-    setTempMaxDuration(filters.maxDurationMs?.toString() || '')
-  }, [filters.serviceName, filters.operationName, filters.minDurationMs, filters.maxDurationMs])
+  const [prevFilters, setPrevFilters] = useState({
+    serviceName: filters.serviceName,
+    operationName: filters.operationName,
+    minDurationMs: filters.minDurationMs,
+    maxDurationMs: filters.maxDurationMs,
+  })
+
+  if (
+    prevFilters.serviceName !== filters.serviceName ||
+    prevFilters.operationName !== filters.operationName ||
+    prevFilters.minDurationMs !== filters.minDurationMs ||
+    prevFilters.maxDurationMs !== filters.maxDurationMs
+  ) {
+    setPrevFilters({
+      serviceName: filters.serviceName,
+      operationName: filters.operationName,
+      minDurationMs: filters.minDurationMs,
+      maxDurationMs: filters.maxDurationMs,
+    })
+    dispatchTempInputs({
+      type: 'SYNC_FROM_FILTERS',
+      payload: {
+        serviceName: filters.serviceName,
+        operationName: filters.operationName,
+        minDurationMs: filters.minDurationMs,
+        maxDurationMs: filters.maxDurationMs,
+      },
+    })
+  }
 
   // Refs for click-outside detection
   const statusRef = useRef<HTMLDivElement>(null)
@@ -187,17 +266,16 @@ export function TraceFilters({
         break
       case 'serviceName':
         onFilterChange('serviceName', undefined)
-        setTempServiceName('')
+        dispatchTempInputs({ type: 'CLEAR_SERVICE_NAME' })
         break
       case 'operationName':
         onFilterChange('operationName', undefined)
-        setTempOperationName('')
+        dispatchTempInputs({ type: 'CLEAR_OPERATION_NAME' })
         break
       case 'duration':
         onFilterChange('minDurationMs', null)
         onFilterChange('maxDurationMs', null)
-        setTempMinDuration('')
-        setTempMaxDuration('')
+        dispatchTempInputs({ type: 'CLEAR_DURATION' })
         break
       case 'timeRange':
         onFilterChange('startTime', null)
@@ -404,7 +482,9 @@ export function TraceFilters({
                   type="number"
                   placeholder="Min"
                   value={tempMinDuration}
-                  onChange={(e) => setTempMinDuration(e.target.value)}
+                  onChange={(e) =>
+                    dispatchTempInputs({ type: 'SET_MIN_DURATION', payload: e.target.value })
+                  }
                   onKeyDown={(e) => handleKeyDown(e, handleDurationApply)}
                   className="w-20 px-2 py-1 bg-[#0A0A0A] border border-[#1D1D1D] rounded text-[11px] text-foreground placeholder-[#5B5B5B] focus:outline-none focus:border-yellow transition-colors"
                 />
@@ -413,7 +493,9 @@ export function TraceFilters({
                   type="number"
                   placeholder="Max"
                   value={tempMaxDuration}
-                  onChange={(e) => setTempMaxDuration(e.target.value)}
+                  onChange={(e) =>
+                    dispatchTempInputs({ type: 'SET_MAX_DURATION', payload: e.target.value })
+                  }
                   onKeyDown={(e) => handleKeyDown(e, handleDurationApply)}
                   className="w-20 px-2 py-1 bg-[#0A0A0A] border border-[#1D1D1D] rounded text-[11px] text-foreground placeholder-[#5B5B5B] focus:outline-none focus:border-yellow transition-colors"
                 />
@@ -450,7 +532,9 @@ export function TraceFilters({
                 type="text"
                 placeholder="e.g., api-*, backend"
                 value={tempServiceName}
-                onChange={(e) => setTempServiceName(e.target.value)}
+                onChange={(e) =>
+                  dispatchTempInputs({ type: 'SET_SERVICE_NAME', payload: e.target.value })
+                }
                 onKeyDown={(e) => handleKeyDown(e, handleServiceApply)}
                 className="w-full px-2 py-1.5 bg-[#0A0A0A] border border-[#1D1D1D] rounded text-[11px] text-foreground placeholder-[#5B5B5B] focus:outline-none focus:border-yellow transition-colors"
               />
@@ -485,7 +569,9 @@ export function TraceFilters({
                 type="text"
                 placeholder="e.g., GET *, POST /api/*"
                 value={tempOperationName}
-                onChange={(e) => setTempOperationName(e.target.value)}
+                onChange={(e) =>
+                  dispatchTempInputs({ type: 'SET_OPERATION_NAME', payload: e.target.value })
+                }
                 onKeyDown={(e) => handleKeyDown(e, handleOperationApply)}
                 className="w-full px-2 py-1.5 bg-[#0A0A0A] border border-[#1D1D1D] rounded text-[11px] text-foreground placeholder-[#5B5B5B] focus:outline-none focus:border-yellow transition-colors"
               />

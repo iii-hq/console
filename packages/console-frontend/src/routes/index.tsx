@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import {
   Activity,
   AlertTriangle,
@@ -38,6 +38,7 @@ export const Route = createFileRoute('/')({
       queryClient.prefetchQuery(streamsQuery),
       queryClient.prefetchQuery(metricsHistoryQuery(100)),
     ])
+    throw redirect({ to: '/functions' })
   },
 })
 
@@ -50,7 +51,12 @@ interface MiniChartProps {
 function MiniChart({ data, color, height = 40 }: MiniChartProps) {
   if (data.length < 2) {
     return (
-      <svg viewBox={`0 0 100 ${height}`} className="w-full h-8" preserveAspectRatio="none">
+      <svg
+        viewBox={`0 0 100 ${height}`}
+        className="w-full h-8"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
         <defs>
           <linearGradient id="skeleton-pulse" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stopColor={color} stopOpacity="0.08">
@@ -112,7 +118,12 @@ function MiniChart({ data, color, height = 40 }: MiniChartProps) {
   const areaPoints = `0,${height} ${points} 100,${height}`
 
   return (
-    <svg viewBox={`0 0 100 ${height}`} className="w-full h-full" preserveAspectRatio="none">
+    <svg
+      viewBox={`0 0 100 ${height}`}
+      className="w-full h-full"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
       <defs>
         <linearGradient id={`gradient-${color}`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={color} stopOpacity="0.3" />
@@ -225,8 +236,6 @@ function DashboardPage() {
   const streams = streamsData?.streams ?? []
   const metricsHistory = metricsHistoryData?.history ?? []
 
-  const isOnline = status !== null
-
   const userTriggers = triggers.filter((t) => !t.internal)
   const userFunctions = functions.filter((f) => !f.internal)
 
@@ -260,18 +269,6 @@ function DashboardPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6 max-w-[1800px] mx-auto">
-      {hasError && (
-        <div className="bg-yellow/10 border border-yellow/30 rounded-lg p-3 flex items-center gap-3">
-          <AlertTriangle className="w-5 h-5 text-yellow flex-shrink-0" />
-          <div>
-            <p className="text-sm font-medium text-yellow">Connection Issue</p>
-            <p className="text-xs text-muted">
-              Unable to connect to the iii engine. Check that it's running on the expected host and
-              port.
-            </p>
-          </div>
-        </div>
-      )}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-lg md:text-xl font-semibold tracking-tight">Dashboard</h1>
@@ -650,21 +647,17 @@ function DashboardPage() {
         </Card>
       </div>
 
-      {!loading && !isOnline && (
-        <Card className="border-[#EF4444]/50 bg-[#EF4444]/5">
-          <CardContent className="py-4">
-            <div className="flex items-center gap-3">
-              <div className="w-2 h-2 rounded-full bg-[#EF4444]" />
-              <div>
-                <div className="text-sm font-medium text-[#EF4444]">Engine Connection Failed</div>
-                <div className="text-xs text-[#5B5B5B] mt-0.5">
-                  Unable to connect to the iii engine. Make sure the engine is running with DevTools
-                  module enabled.
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {hasError && (
+        <div className="bg-yellow/10 border border-yellow/30 rounded-lg p-3 flex items-center gap-3">
+          <AlertTriangle className="w-5 h-5 text-yellow flex-shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-yellow">Connection Issue</p>
+            <p className="text-xs text-muted">
+              Unable to connect to the iii engine. Check that it's running on the expected host and
+              port.
+            </p>
+          </div>
+        </div>
       )}
     </div>
   )

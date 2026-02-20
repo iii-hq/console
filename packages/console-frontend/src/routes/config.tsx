@@ -467,6 +467,7 @@ ${workerPools.map((w) => `# ${w.id}: ${w.count || 0} connected`).join('\n')}
             <div className="flex items-center justify-between">
               <code className="text-[10px] text-muted font-mono truncate">{ep.url}</code>
               <button
+                type="button"
                 onClick={() => copyToClipboard(ep.url, ep.url)}
                 className="p-1 hover:bg-dark-gray rounded transition-colors"
               >
@@ -521,6 +522,7 @@ ${workerPools.map((w) => `# ${w.id}: ${w.count || 0} connected`).join('\n')}
                             "{tt}"
                           </code>
                           <button
+                            type="button"
                             onClick={() => copyToClipboard(tt, `tt-${tt}`)}
                             className="p-1 hover:bg-dark-gray rounded transition-colors opacity-0 group-hover:opacity-100"
                           >
@@ -546,6 +548,7 @@ ${workerPools.map((w) => `# ${w.id}: ${w.count || 0} connected`).join('\n')}
                     {modules.map((mod) => (
                       <button
                         key={mod.id}
+                        type="button"
                         onClick={() => setSelectedModule(selectedModule === mod.id ? null : mod.id)}
                         className={`p-3 rounded-lg border text-left transition-all ${
                           selectedModule === mod.id
@@ -829,6 +832,7 @@ ${workerPools.map((w) => `# ${w.id}: ${w.count || 0} connected`).join('\n')}
                   Download
                 </Button>
                 <button
+                  type="button"
                   onClick={() => setShowConfigModal(false)}
                   className="p-1 rounded hover:bg-dark-gray"
                 >
