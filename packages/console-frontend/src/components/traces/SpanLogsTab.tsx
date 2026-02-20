@@ -53,7 +53,7 @@ export function SpanLogsTab({ span }: SpanLogsTabProps) {
 
         return (
           <div
-            key={`${event.timestamp}-${index}`}
+            key={`${event.name}-${event.timestamp}`}
             className={`rounded-lg border overflow-hidden ${
               isException ? 'bg-[#EF4444]/5 border-[#EF4444]/15' : 'bg-[#141414] border-[#1D1D1D]'
             }`}

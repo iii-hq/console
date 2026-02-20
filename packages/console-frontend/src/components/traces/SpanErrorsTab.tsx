@@ -95,7 +95,7 @@ export function SpanErrorsTab({ span }: SpanErrorsTabProps) {
                 const hasLineNumber = /:\d+[:\d]*/.test(line)
                 return (
                   <div
-                    key={`stack-${i}`}
+                    key={`${i}:${line}`}
                     className={`${
                       isFrameLine
                         ? hasLineNumber

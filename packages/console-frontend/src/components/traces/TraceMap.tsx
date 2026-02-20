@@ -97,21 +97,24 @@ export function TraceMap({ data, onSpanClick }: TraceMapProps) {
     const centerY = 250
     const radius = Math.min(150, 50 + nodeCount * 20)
 
-    const nodes: ServiceNode[] = serviceNames.map((name, i) => {
-      const stats = serviceMap.get(name)!
-      const angle = (i / nodeCount) * 2 * Math.PI - Math.PI / 2
+    const nodes: ServiceNode[] = serviceNames
+      .map((name, i) => {
+        const stats = serviceMap.get(name)
+        if (!stats) return null
+        const angle = (i / nodeCount) * 2 * Math.PI - Math.PI / 2
 
-      return {
-        id: name,
-        name,
-        spanCount: stats.spanCount,
-        totalDuration: stats.totalDuration,
-        errorCount: stats.errorCount,
-        x: centerX + radius * Math.cos(angle),
-        y: centerY + radius * Math.sin(angle),
-        color: getServiceColor(name),
-      }
-    })
+        return {
+          id: name,
+          name,
+          spanCount: stats.spanCount,
+          totalDuration: stats.totalDuration,
+          errorCount: stats.errorCount,
+          x: centerX + radius * Math.cos(angle),
+          y: centerY + radius * Math.sin(angle),
+          color: getServiceColor(name),
+        }
+      })
+      .filter((n): n is ServiceNode => n !== null)
 
     const edges: ServiceEdge[] = Array.from(edgeMap.entries()).map(([key, value]) => {
       const [from, to] = key.split('->')

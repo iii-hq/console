@@ -17,11 +17,93 @@ import {
   X,
   XCircle,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useReducer } from 'react'
 import type { FunctionInfo } from '@/api'
 import { functionsQuery, invokeFunction as invokeFunctionApi, workersQuery } from '@/api'
 import { Badge, Button, Input } from '@/components/ui/card'
 import { JsonViewer } from '@/components/ui/json-viewer'
+
+// --- invocation reducer ---
+interface InvocationResult {
+  success: boolean
+  status?: number
+  duration?: number
+  data?: unknown
+  error?: string
+}
+
+interface InvocationState {
+  invoking: boolean
+  invocationResult: InvocationResult | null
+  requestBody: string
+}
+
+type InvocationAction =
+  | { type: 'START_INVOKE' }
+  | { type: 'SET_RESULT'; result: InvocationResult }
+  | { type: 'CLEAR_RESULT' }
+  | { type: 'SET_REQUEST_BODY'; body: string }
+  | { type: 'INVOKE_DONE' }
+
+const invocationInitial: InvocationState = {
+  invoking: false,
+  invocationResult: null,
+  requestBody: '{}',
+}
+
+function invocationReducer(state: InvocationState, action: InvocationAction): InvocationState {
+  switch (action.type) {
+    case 'START_INVOKE':
+      return { ...state, invoking: true, invocationResult: null }
+    case 'SET_RESULT':
+      return { ...state, invocationResult: action.result }
+    case 'CLEAR_RESULT':
+      return { ...state, invocationResult: null }
+    case 'SET_REQUEST_BODY':
+      return { ...state, requestBody: action.body }
+    case 'INVOKE_DONE':
+      return { ...state, invoking: false }
+    default:
+      return state
+  }
+}
+
+// --- UI reducer ---
+interface FunctionsUiState {
+  searchQuery: string
+  showSystem: boolean
+  selectedFunction: FunctionInfo | null
+  copied: string | null
+  collapsedGroups: Set<string>
+}
+
+type FunctionsUiAction =
+  | { type: 'SET_SEARCH_QUERY'; payload: string }
+  | { type: 'TOGGLE_SHOW_SYSTEM' }
+  | { type: 'SET_SELECTED_FUNCTION'; payload: FunctionInfo | null }
+  | { type: 'SET_COPIED'; payload: string | null }
+  | { type: 'TOGGLE_GROUP'; payload: string }
+
+function functionsUiReducer(state: FunctionsUiState, action: FunctionsUiAction): FunctionsUiState {
+  switch (action.type) {
+    case 'SET_SEARCH_QUERY':
+      return { ...state, searchQuery: action.payload }
+    case 'TOGGLE_SHOW_SYSTEM':
+      return { ...state, showSystem: !state.showSystem }
+    case 'SET_SELECTED_FUNCTION':
+      return { ...state, selectedFunction: action.payload }
+    case 'SET_COPIED':
+      return { ...state, copied: action.payload }
+    case 'TOGGLE_GROUP': {
+      const next = new Set(state.collapsedGroups)
+      if (next.has(action.payload)) next.delete(action.payload)
+      else next.add(action.payload)
+      return { ...state, collapsedGroups: next }
+    }
+    default:
+      return state
+  }
+}
 
 export const Route = createFileRoute('/functions')({
   component: FunctionsPage,
@@ -33,23 +115,18 @@ export const Route = createFileRoute('/functions')({
   },
 })
 
-interface InvocationResult {
-  success: boolean
-  status?: number
-  duration?: number
-  data?: unknown
-  error?: string
-}
-
 function FunctionsPage() {
-  const [searchQuery, setSearchQuery] = useState('')
-  const [showSystem, setShowSystem] = useState(false)
-  const [selectedFunction, setSelectedFunction] = useState<FunctionInfo | null>(null)
-  const [copied, setCopied] = useState<string | null>(null)
-  const [invoking, setInvoking] = useState(false)
-  const [invocationResult, setInvocationResult] = useState<InvocationResult | null>(null)
-  const [requestBody, setRequestBody] = useState('{}')
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+  const [uiState, dispatchUi] = useReducer(functionsUiReducer, {
+    searchQuery: '',
+    showSystem: false,
+    selectedFunction: null,
+    copied: null,
+    collapsedGroups: new Set<string>(),
+  })
+  const { searchQuery, showSystem, selectedFunction, copied, collapsedGroups } = uiState
+
+  const [invocationState, dispatchInvocation] = useReducer(invocationReducer, invocationInitial)
+  const { invoking, invocationResult, requestBody } = invocationState
 
   const {
     data: functionsData,
@@ -62,12 +139,7 @@ function FunctionsPage() {
   const loading = loadingFunctions
 
   const toggleGroup = (group: string) => {
-    setCollapsedGroups((prev) => {
-      const next = new Set(prev)
-      if (next.has(group)) next.delete(group)
-      else next.add(group)
-      return next
-    })
+    dispatchUi({ type: 'TOGGLE_GROUP', payload: group })
   }
 
   const loadData = () => {
@@ -109,8 +181,8 @@ function FunctionsPage() {
 
   const copyToClipboard = (text: string, key: string) => {
     navigator.clipboard.writeText(text)
-    setCopied(key)
-    setTimeout(() => setCopied(null), 2000)
+    dispatchUi({ type: 'SET_COPIED', payload: key })
+    setTimeout(() => dispatchUi({ type: 'SET_COPIED', payload: null }), 2000)
   }
 
   const generateTemplate = (schema: unknown): string => {
@@ -132,8 +204,7 @@ function FunctionsPage() {
   }
 
   const invokeFunction = async (fn: FunctionInfo) => {
-    setInvoking(true)
-    setInvocationResult(null)
+    dispatchInvocation({ type: 'START_INVOKE' })
     const startTime = Date.now()
 
     try {
@@ -141,42 +212,43 @@ function FunctionsPage() {
       try {
         input = JSON.parse(requestBody)
       } catch {
-        setInvocationResult({
-          success: false,
-          error: 'Invalid JSON in request body',
+        dispatchInvocation({
+          type: 'SET_RESULT',
+          result: { success: false, error: 'Invalid JSON in request body' },
         })
-        setInvoking(false)
+        dispatchInvocation({ type: 'INVOKE_DONE' })
         return
       }
 
       const result = await invokeFunctionApi(fn.function_id, input)
       const duration = Date.now() - startTime
 
-      setInvocationResult({
-        success: result.success,
-        duration,
-        data: result.data,
-        error: result.error,
+      dispatchInvocation({
+        type: 'SET_RESULT',
+        result: { success: result.success, duration, data: result.data, error: result.error },
       })
     } catch (err) {
-      setInvocationResult({
-        success: false,
-        duration: Date.now() - startTime,
-        error: err instanceof Error ? err.message : 'Invocation failed',
+      dispatchInvocation({
+        type: 'SET_RESULT',
+        result: {
+          success: false,
+          duration: Date.now() - startTime,
+          error: err instanceof Error ? err.message : 'Invocation failed',
+        },
       })
     } finally {
-      setInvoking(false)
+      dispatchInvocation({ type: 'INVOKE_DONE' })
     }
   }
 
   const handleSelectFunction = (fn: FunctionInfo) => {
     if (selectedFunction?.function_id === fn.function_id) {
-      setSelectedFunction(null)
+      dispatchUi({ type: 'SET_SELECTED_FUNCTION', payload: null })
     } else {
-      setSelectedFunction(fn)
-      setInvocationResult(null)
+      dispatchUi({ type: 'SET_SELECTED_FUNCTION', payload: fn })
+      dispatchInvocation({ type: 'CLEAR_RESULT' })
       const template = fn.request_format ? generateTemplate(fn.request_format) : '{\n  \n}'
-      setRequestBody(template)
+      dispatchInvocation({ type: 'SET_REQUEST_BODY', body: template })
     }
   }
 
@@ -203,7 +275,7 @@ function FunctionsPage() {
           <Button
             variant={showSystem ? 'accent' : 'ghost'}
             size="sm"
-            onClick={() => setShowSystem(!showSystem)}
+            onClick={() => dispatchUi({ type: 'TOGGLE_SHOW_SYSTEM' })}
             className="h-6 md:h-7 text-[10px] md:text-xs px-2"
           >
             {showSystem ? (
@@ -234,13 +306,14 @@ function FunctionsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
           <Input
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => dispatchUi({ type: 'SET_SEARCH_QUERY', payload: e.target.value })}
             className="pl-9 pr-9 h-9"
             placeholder="Search functions..."
           />
           {searchQuery && (
             <button
-              onClick={() => setSearchQuery('')}
+              type="button"
+              onClick={() => dispatchUi({ type: 'SET_SEARCH_QUERY', payload: '' })}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground"
             >
               <X className="w-4 h-4" />
@@ -270,6 +343,7 @@ function FunctionsPage() {
             groups.map((group) => (
               <div key={group}>
                 <button
+                  type="button"
                   onClick={() => toggleGroup(group)}
                   className="flex items-center gap-2 mb-3 cursor-pointer hover:opacity-80 transition-opacity"
                 >
@@ -289,10 +363,11 @@ function FunctionsPage() {
                       const isSelected = selectedFunction?.function_id === fn.function_id
 
                       return (
-                        <div
+                        <button
                           key={fn.function_id}
+                          type="button"
                           onClick={() => handleSelectFunction(fn)}
-                          className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all
+                          className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all w-full text-left
                           ${
                             isSelected
                               ? 'bg-primary/10 border border-primary/30 ring-1 ring-primary/20'
@@ -315,7 +390,7 @@ function FunctionsPage() {
                           <ChevronRight
                             className={`w-4 h-4 text-muted shrink-0 transition-transform ${isSelected ? 'rotate-90' : ''}`}
                           />
-                        </div>
+                        </button>
                       )
                     })}
                   </div>
@@ -343,6 +418,7 @@ function FunctionsPage() {
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <button
+                    type="button"
                     onClick={() => copyToClipboard(selectedFunction.function_id, 'path')}
                     className="p-1.5 hover:bg-dark-gray rounded transition-colors"
                     title="Copy function ID"
@@ -356,7 +432,7 @@ function FunctionsPage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setSelectedFunction(null)}
+                    onClick={() => dispatchUi({ type: 'SET_SELECTED_FUNCTION', payload: null })}
                     className="h-7 w-7 md:h-6 md:w-6 p-0"
                   >
                     <X className="w-4 h-4" />
@@ -384,7 +460,9 @@ function FunctionsPage() {
                     </div>
                     <textarea
                       value={requestBody}
-                      onChange={(e) => setRequestBody(e.target.value)}
+                      onChange={(e) =>
+                        dispatchInvocation({ type: 'SET_REQUEST_BODY', body: e.target.value })
+                      }
                       className="w-full h-24 text-xs font-mono bg-black/40 text-foreground px-3 py-2 rounded border border-border focus:border-primary focus:outline-none resize-none"
                       placeholder='{"key": "value"}'
                     />

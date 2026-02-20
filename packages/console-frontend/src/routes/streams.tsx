@@ -19,7 +19,7 @@ import {
   X,
   Zap,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type { StreamMessage } from '@/api'
 import { getConnectionInfo, streamsQuery } from '@/api'
 import { useConfig } from '@/api/config-provider'
@@ -127,6 +127,70 @@ const EVENT_TYPE_INFO: Record<string, { label: string; description: string; colo
   },
 }
 
+interface MessagesState {
+  messages: WebSocketMessageEntry[]
+  stats: {
+    totalMessages: number
+    inbound: number
+    outbound: number
+    totalBytes: number
+    latency: number | null
+    lastPingTime: number | null
+  }
+}
+
+type MessagesAction =
+  | { type: 'add_message'; entry: WebSocketMessageEntry }
+  | { type: 'clear'; latency: number | null; lastPingTime: number | null }
+  | { type: 'set_latency'; latency: number }
+
+function messagesReducer(state: MessagesState, action: MessagesAction): MessagesState {
+  switch (action.type) {
+    case 'add_message': {
+      const { entry } = action
+      return {
+        messages: [entry, ...state.messages].slice(0, 1000),
+        stats: {
+          ...state.stats,
+          totalMessages: state.stats.totalMessages + 1,
+          inbound: entry.direction === 'inbound' ? state.stats.inbound + 1 : state.stats.inbound,
+          outbound:
+            entry.direction === 'outbound' ? state.stats.outbound + 1 : state.stats.outbound,
+          totalBytes: state.stats.totalBytes + entry.size,
+        },
+      }
+    }
+    case 'clear':
+      return {
+        messages: [],
+        stats: {
+          totalMessages: 0,
+          inbound: 0,
+          outbound: 0,
+          totalBytes: 0,
+          latency: action.latency,
+          lastPingTime: action.lastPingTime,
+        },
+      }
+    case 'set_latency':
+      return { ...state, stats: { ...state.stats, latency: action.latency } }
+    default:
+      return state
+  }
+}
+
+const INITIAL_MESSAGES_STATE: MessagesState = {
+  messages: [],
+  stats: {
+    totalMessages: 0,
+    inbound: 0,
+    outbound: 0,
+    totalBytes: 0,
+    latency: null,
+    lastPingTime: null,
+  },
+}
+
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
@@ -150,7 +214,10 @@ function StreamsPage() {
   const [showSystem, setShowSystem] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
 
-  const [messages, setMessages] = useState<WebSocketMessageEntry[]>([])
+  const [{ messages, stats }, messagesDispatch] = useReducer(
+    messagesReducer,
+    INITIAL_MESSAGES_STATE,
+  )
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null)
   const [directionFilter, setDirectionFilter] = useState<'all' | 'inbound' | 'outbound'>('all')
   const [streamFilter, setStreamFilter] = useState<string | null>(null)
@@ -158,15 +225,6 @@ function StreamsPage() {
   const [autoScroll] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(50)
-
-  const [stats, setStats] = useState({
-    totalMessages: 0,
-    inbound: 0,
-    outbound: 0,
-    totalBytes: 0,
-    latency: null as number | null,
-    lastPingTime: null as number | null,
-  })
 
   const wsRef = useRef<WebSocket | null>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
@@ -208,26 +266,8 @@ function StreamsPage() {
       const id = `msg_${Date.now()}_${messageIdCounter.current++}`
       const dataStr = typeof msg.data === 'string' ? msg.data : JSON.stringify(msg.data)
       const size = new Blob([dataStr]).size
-
-      const entry: WebSocketMessageEntry = {
-        id,
-        timestamp: Date.now(),
-        size,
-        ...msg,
-      }
-
-      setMessages((prev) => {
-        const newMessages = [entry, ...prev].slice(0, 1000)
-        return newMessages
-      })
-
-      setStats((prev) => ({
-        ...prev,
-        totalMessages: prev.totalMessages + 1,
-        inbound: msg.direction === 'inbound' ? prev.inbound + 1 : prev.inbound,
-        outbound: msg.direction === 'outbound' ? prev.outbound + 1 : prev.outbound,
-        totalBytes: prev.totalBytes + size,
-      }))
+      const entry: WebSocketMessageEntry = { id, timestamp: Date.now(), size, ...msg }
+      messagesDispatch({ type: 'add_message', entry })
     }
 
     const connect = () => {
@@ -259,7 +299,7 @@ function StreamsPage() {
 
             if (data.type === 'pong' && lastPingTimeRef.current) {
               const latency = Date.now() - lastPingTimeRef.current
-              setStats((prev) => ({ ...prev, latency }))
+              messagesDispatch({ type: 'set_latency', latency })
               return
             }
 
@@ -346,13 +386,7 @@ function StreamsPage() {
         data: message,
         size,
       }
-      setMessages((prev) => [entry, ...prev].slice(0, 1000))
-      setStats((prev) => ({
-        ...prev,
-        totalMessages: prev.totalMessages + 1,
-        outbound: prev.outbound + 1,
-        totalBytes: prev.totalBytes + size,
-      }))
+      messagesDispatch({ type: 'add_message', entry })
 
       return subscriptionId
     }
@@ -409,10 +443,6 @@ function StreamsPage() {
     return filteredMessages.slice(start, start + pageSize)
   }, [filteredMessages, currentPage, pageSize])
 
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [])
-
   const selectedMessage = messages.find((m) => m.id === selectedMessageId)
 
   const uniqueStreams = useMemo(() => {
@@ -424,15 +454,7 @@ function StreamsPage() {
   }, [messages])
 
   const clearMessages = () => {
-    setMessages([])
-    setStats({
-      totalMessages: 0,
-      inbound: 0,
-      outbound: 0,
-      totalBytes: 0,
-      latency: stats.latency,
-      lastPingTime: stats.lastPingTime,
-    })
+    messagesDispatch({ type: 'clear', latency: stats.latency, lastPingTime: stats.lastPingTime })
     setSelectedMessageId(null)
   }
 
@@ -601,6 +623,7 @@ function StreamsPage() {
           />
           {searchQuery && (
             <button
+              type="button"
               onClick={() => setSearchQuery('')}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground"
             >
@@ -696,10 +719,10 @@ function StreamsPage() {
                   const isSelected = selectedMessageId === msg.id
 
                   return (
-                    <div
+                    <button
                       key={msg.id}
-                      role="row"
-                      className={`flex items-center font-mono cursor-pointer text-[12px] h-8 px-3 border-l-2 transition-colors
+                      type="button"
+                      className={`flex items-center font-mono cursor-pointer text-[12px] h-8 px-3 border-l-2 transition-colors w-full text-left
                         ${isSelected ? 'bg-primary/10 border-l-primary' : `hover:bg-dark-gray/30 ${config.border}`}
                       `}
                       onClick={() => setSelectedMessageId(isSelected ? null : msg.id)}
@@ -731,7 +754,7 @@ function StreamsPage() {
                       <div className="shrink-0 ml-2 text-[10px] text-muted tabular-nums">
                         {formatBytes(msg.size)}
                       </div>
-                    </div>
+                    </button>
                   )
                 })}
               </div>
@@ -834,6 +857,7 @@ function StreamsPage() {
                 <div className="text-[10px] text-muted uppercase tracking-wider mb-2 flex items-center gap-2">
                   Data
                   <button
+                    type="button"
                     onClick={() =>
                       copyToClipboard(JSON.stringify(selectedMessage.data, null, 2), 'data')
                     }
@@ -879,8 +903,11 @@ function StreamsPage() {
 
             <div className="p-4 space-y-4">
               <div>
-                <label className="text-xs text-muted block mb-1.5">Stream Name</label>
+                <label htmlFor="stream-name" className="text-xs text-muted block mb-1.5">
+                  Stream Name
+                </label>
                 <Input
+                  id="stream-name"
                   value={newStreamName}
                   onChange={(e) => setNewStreamName(e.target.value)}
                   placeholder="e.g., todo, iii.logs, my-stream"
@@ -897,7 +924,7 @@ function StreamsPage() {
               </div>
 
               <div>
-                <label className="text-xs text-muted block mb-1.5">Group</label>
+                <span className="text-xs text-muted block mb-1.5">Group</span>
                 <div className="flex flex-wrap gap-1.5">
                   {/* Show only groups returned from API */}
                   {availableGroups.length > 0 ? (
@@ -934,7 +961,7 @@ function StreamsPage() {
 
               {streams.length > 0 && (
                 <div>
-                  <label className="text-xs text-muted block mb-2">Available Streams</label>
+                  <span className="text-xs text-muted block mb-2">Available Streams</span>
                   <div className="flex flex-wrap gap-2 max-h-32 overflow-auto">
                     {streams
                       .filter((s) => !subscribedStreams.some((sub) => sub.streamName === s.id))

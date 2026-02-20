@@ -17,7 +17,7 @@ import {
   X,
   Zap,
 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type { OtelLog } from '@/api'
 import { otelLogsQuery } from '@/api/queries'
 import { type TimeRange, TimeRangeFilter } from '@/components/filters/TimeRangeFilter'
@@ -28,6 +28,97 @@ import { Pagination } from '@/components/ui/pagination'
 export const Route = createFileRoute('/logs')({
   component: LogsPage,
 })
+
+// --- Filter Reducer ---
+interface FilterState {
+  searchQuery: string
+  activeLevelFilters: Set<string>
+  timeRange: TimeRange | undefined
+  selectedSeverity: string
+}
+
+type FilterAction =
+  | { type: 'SET_SEARCH_QUERY'; payload: string }
+  | { type: 'TOGGLE_LEVEL_FILTER'; payload: string }
+  | { type: 'CLEAR_LEVEL_FILTERS' }
+  | { type: 'SET_TIME_RANGE'; payload: TimeRange | undefined }
+  | { type: 'SET_SEVERITY'; payload: string }
+  | { type: 'CLEAR_TIME_AND_SEVERITY' }
+
+function filterReducer(state: FilterState, action: FilterAction): FilterState {
+  switch (action.type) {
+    case 'SET_SEARCH_QUERY':
+      return { ...state, searchQuery: action.payload }
+    case 'TOGGLE_LEVEL_FILTER': {
+      const next = new Set(state.activeLevelFilters)
+      if (next.has(action.payload)) {
+        next.delete(action.payload)
+      } else {
+        next.add(action.payload)
+      }
+      return { ...state, activeLevelFilters: next }
+    }
+    case 'CLEAR_LEVEL_FILTERS':
+      return { ...state, activeLevelFilters: new Set() }
+    case 'SET_TIME_RANGE':
+      return { ...state, timeRange: action.payload }
+    case 'SET_SEVERITY':
+      return { ...state, selectedSeverity: action.payload }
+    case 'CLEAR_TIME_AND_SEVERITY':
+      return { ...state, timeRange: undefined, selectedSeverity: '' }
+    default:
+      return state
+  }
+}
+
+// --- Pagination Reducer ---
+interface PaginationState {
+  currentPage: number
+  pageSize: number
+}
+
+type PaginationAction =
+  | { type: 'SET_PAGE'; payload: number }
+  | { type: 'SET_PAGE_SIZE'; payload: number }
+
+function paginationReducer(state: PaginationState, action: PaginationAction): PaginationState {
+  switch (action.type) {
+    case 'SET_PAGE':
+      return { ...state, currentPage: action.payload }
+    case 'SET_PAGE_SIZE':
+      return { ...state, pageSize: action.payload }
+    default:
+      return state
+  }
+}
+
+// --- UI Reducer ---
+interface UiState {
+  selectedLogId: string | undefined
+  fullscreenLogId: string | null
+  copied: string | null
+}
+
+type UiAction =
+  | { type: 'SET_SELECTED_LOG_ID'; payload: string | undefined }
+  | { type: 'SET_FULLSCREEN_LOG_ID'; payload: string | null }
+  | { type: 'SET_COPIED'; payload: string | null }
+  | { type: 'CLEAR_SELECTED_LOG' }
+
+function uiReducer(state: UiState, action: UiAction): UiState {
+  switch (action.type) {
+    case 'SET_SELECTED_LOG_ID':
+      return { ...state, selectedLogId: action.payload }
+    case 'SET_FULLSCREEN_LOG_ID':
+      return { ...state, fullscreenLogId: action.payload }
+    case 'SET_COPIED':
+      return { ...state, copied: action.payload }
+    case 'CLEAR_SELECTED_LOG':
+      return { ...state, selectedLogId: undefined }
+    default:
+      return state
+  }
+}
 
 interface LogEntry {
   id: string
@@ -97,19 +188,31 @@ function formatFullTimestamp(time: number | string): string {
 }
 
 function LogsPage() {
-  const [logs, setLogs] = useState<LogEntry[]>([])
-  const [searchQuery, setSearchQuery] = useState('')
-  const [activeLevelFilters, setActiveLevelFilters] = useState<Set<string>>(new Set())
+  const [clearedData, setClearedData] = useState<unknown>(null)
   const [isPaused, setIsPaused] = useState(false)
-  const [hasLoggingAdapter, setHasLoggingAdapter] = useState(false)
-  const [selectedLogId, setSelectedLogId] = useState<string | undefined>()
-  const [copied, setCopied] = useState<string | null>(null)
-  const [autoScroll] = useState(true)
-  const [fullscreenLogId, setFullscreenLogId] = useState<string | null>(null)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(50)
-  const [timeRange, setTimeRange] = useState<TimeRange | undefined>()
-  const [selectedSeverity, setSelectedSeverity] = useState<string>('')
+  const autoScroll = true
+
+  const [filterState, dispatchFilter] = useReducer(filterReducer, {
+    searchQuery: '',
+    activeLevelFilters: new Set<string>(),
+    timeRange: undefined,
+    selectedSeverity: '',
+  })
+  const { searchQuery, activeLevelFilters, timeRange, selectedSeverity } = filterState
+
+  const [pagination, dispatchPagination] = useReducer(paginationReducer, {
+    currentPage: 1,
+    pageSize: 50,
+  })
+  const { currentPage, pageSize } = pagination
+
+  const [uiState, dispatchUi] = useReducer(uiReducer, {
+    selectedLogId: undefined,
+    fullscreenLogId: null,
+    copied: null,
+  })
+  const { selectedLogId, fullscreenLogId, copied } = uiState
+
   const logContainerRef = useRef<HTMLDivElement>(null)
   const lastLogCountRef = useRef(0)
 
@@ -125,59 +228,53 @@ function LogsPage() {
     staleTime: 1000, // Data is fresh for 1s to prevent race conditions with refetch interval
   })
 
-  useEffect(() => {
-    if (otelLogsData?.logs && otelLogsData.logs.length > 0) {
-      setHasLoggingAdapter(true)
-      const transformedLogs: LogEntry[] = otelLogsData.logs.map((log: OtelLog, i: number) => {
-        // Extract service name from resource attributes
-        const serviceName = (log.resource?.['service.name'] as string) || 'unknown'
+  const hasLoggingAdapter = useMemo(() => {
+    if (!otelLogsData) return false
+    if (otelLogsData.logs && otelLogsData.logs.length > 0) return true
+    return otelLogsData.logs !== undefined
+  }, [otelLogsData])
 
-        // Map OTEL severity_text to internal level
-        const levelMap: Record<string, LogEntry['level']> = {
-          DEBUG: 'debug',
-          INFO: 'info',
-          WARN: 'warn',
-          WARNING: 'warn',
-          ERROR: 'error',
-        }
-        const level = levelMap[log.severity_text?.toUpperCase()] || 'info'
-
-        // Convert nanoseconds to milliseconds
-        const timestampMs = log.timestamp_unix_nano / 1_000_000
-
-        return {
-          id: `${log.trace_id || log.timestamp_unix_nano}-${i}`,
-          timestamp: new Date(timestampMs).toISOString(),
-          time: timestampMs,
-          level,
-          message: log.body,
-          source: serviceName,
-          traceId: log.trace_id || undefined,
-          context: log.attributes as Record<string, unknown>,
-        }
-      })
-
-      if (
-        transformedLogs.length > lastLogCountRef.current &&
-        autoScroll &&
-        logContainerRef.current
-      ) {
-        setTimeout(() => {
-          logContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
-        }, 100)
-      }
-      lastLogCountRef.current = transformedLogs.length
-      setLogs(transformedLogs)
-    } else if (otelLogsData) {
-      setHasLoggingAdapter(otelLogsData.logs !== undefined)
+  const logs = useMemo(() => {
+    if (!otelLogsData?.logs || otelLogsData.logs.length === 0) return []
+    if (otelLogsData === clearedData) return []
+    const levelMap: Record<string, LogEntry['level']> = {
+      DEBUG: 'debug',
+      INFO: 'info',
+      WARN: 'warn',
+      WARNING: 'warn',
+      ERROR: 'error',
     }
-  }, [otelLogsData, autoScroll])
+    return otelLogsData.logs.map((log: OtelLog, i: number) => {
+      const serviceName = (log.resource?.['service.name'] as string) || 'unknown'
+      const level = levelMap[log.severity_text?.toUpperCase()] || 'info'
+      const timestampMs = log.timestamp_unix_nano / 1_000_000
+      return {
+        id: `${log.trace_id || log.timestamp_unix_nano}-${i}`,
+        timestamp: new Date(timestampMs).toISOString(),
+        time: timestampMs,
+        level,
+        message: log.body,
+        source: serviceName,
+        traceId: log.trace_id || undefined,
+        context: log.attributes as Record<string, unknown>,
+      }
+    })
+  }, [otelLogsData, clearedData])
+
+  useEffect(() => {
+    if (logs.length > lastLogCountRef.current && autoScroll && logContainerRef.current) {
+      setTimeout(() => {
+        logContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+      }, 100)
+    }
+    lastLogCountRef.current = logs.length
+  }, [logs])
 
   // Handle Escape key to close fullscreen modal
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && fullscreenLogId) {
-        setFullscreenLogId(null)
+        dispatchUi({ type: 'SET_FULLSCREEN_LOG_ID', payload: null })
       }
     }
 
@@ -211,11 +308,6 @@ function LogsPage() {
     return filteredLogs.slice(start, start + pageSize)
   }, [filteredLogs, currentPage, pageSize])
 
-  // Reset to page 1 when filters change
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [])
-
   const selectedLog = useMemo(() => {
     return selectedLogId ? logs.find((log) => log.id === selectedLogId) : undefined
   }, [logs, selectedLogId])
@@ -225,31 +317,23 @@ function LogsPage() {
   }, [logs, fullscreenLogId])
 
   const clearLogs = () => {
-    setLogs([])
-    setSelectedLogId(undefined)
+    setClearedData(otelLogsData)
+    dispatchUi({ type: 'CLEAR_SELECTED_LOG' })
     lastLogCountRef.current = 0
   }
 
   const toggleLevelFilter = (level: string) => {
-    setActiveLevelFilters((prev) => {
-      const next = new Set(prev)
-      if (next.has(level)) {
-        next.delete(level)
-      } else {
-        next.add(level)
-      }
-      return next
-    })
+    dispatchFilter({ type: 'TOGGLE_LEVEL_FILTER', payload: level })
   }
 
   const filterByTrace = (traceId: string) => {
-    setSearchQuery(traceId)
+    dispatchFilter({ type: 'SET_SEARCH_QUERY', payload: traceId })
   }
 
   const copyToClipboard = (text: string, key: string) => {
     navigator.clipboard.writeText(text)
-    setCopied(key)
-    setTimeout(() => setCopied(null), 2000)
+    dispatchUi({ type: 'SET_COPIED', payload: key })
+    setTimeout(() => dispatchUi({ type: 'SET_COPIED', payload: null }), 2000)
   }
 
   const exportLogs = () => {
@@ -396,11 +480,15 @@ function LogsPage() {
           <div className="flex flex-col gap-2 p-2 border-b border-border bg-dark-gray/20">
             {/* Time Range and Severity Filters */}
             <div className="flex items-center gap-2 flex-wrap">
-              <TimeRangeFilter value={timeRange} onChange={setTimeRange} compactMode />
+              <TimeRangeFilter
+                value={timeRange}
+                onChange={(v) => dispatchFilter({ type: 'SET_TIME_RANGE', payload: v })}
+                compactMode
+              />
 
               <select
                 value={selectedSeverity}
-                onChange={(e) => setSelectedSeverity(e.target.value)}
+                onChange={(e) => dispatchFilter({ type: 'SET_SEVERITY', payload: e.target.value })}
                 className="px-3 py-1.5 rounded text-xs bg-[#1D1D1D] border border-[#1D1D1D] hover:border-[#5B5B5B] text-[#F4F4F4]"
               >
                 <option value="">All Severities</option>
@@ -414,10 +502,7 @@ function LogsPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => {
-                    setTimeRange(undefined)
-                    setSelectedSeverity('')
-                  }}
+                  onClick={() => dispatchFilter({ type: 'CLEAR_TIME_AND_SEVERITY' })}
                   className="h-7 text-xs px-2"
                 >
                   <X className="w-3 h-3 mr-1" />
@@ -432,13 +517,16 @@ function LogsPage() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
                 <Input
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) =>
+                    dispatchFilter({ type: 'SET_SEARCH_QUERY', payload: e.target.value })
+                  }
                   className="pl-9 pr-9 h-9 font-medium"
                   placeholder="Search by Trace ID, Source, or Message..."
                 />
                 {searchQuery && (
                   <button
-                    onClick={() => setSearchQuery('')}
+                    type="button"
+                    onClick={() => dispatchFilter({ type: 'SET_SEARCH_QUERY', payload: '' })}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground"
                   >
                     <X className="w-4 h-4" />
@@ -455,6 +543,7 @@ function LogsPage() {
                   return (
                     <button
                       key={level}
+                      type="button"
                       onClick={() => toggleLevelFilter(level)}
                       className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs transition-all ${
                         isActive
@@ -475,7 +564,8 @@ function LogsPage() {
 
                 {activeLevelFilters.size > 0 && (
                   <button
-                    onClick={() => setActiveLevelFilters(new Set())}
+                    type="button"
+                    onClick={() => dispatchFilter({ type: 'CLEAR_LEVEL_FILTERS' })}
                     className="ml-1 p-1 rounded hover:bg-dark-gray/50 text-muted hover:text-foreground transition-colors"
                     title="Clear level filters"
                   >
@@ -500,9 +590,10 @@ function LogsPage() {
                       </span>
                       {(searchQuery || activeLevelFilters.size > 0) && (
                         <button
+                          type="button"
                           onClick={() => {
-                            setSearchQuery('')
-                            setActiveLevelFilters(new Set())
+                            dispatchFilter({ type: 'SET_SEARCH_QUERY', payload: '' })
+                            dispatchFilter({ type: 'CLEAR_LEVEL_FILTERS' })
                           }}
                           className="mt-2 text-xs text-primary hover:underline"
                         >
@@ -516,20 +607,21 @@ function LogsPage() {
                       const isSelected = selectedLogId === log.id
 
                       return (
-                        <div
+                        <button
                           key={log.id}
-                          role="row"
-                          tabIndex={0}
-                          className={`flex items-center font-mono cursor-pointer text-[13px] h-9 px-3 border-b border-border/20 transition-colors
+                          type="button"
+                          className={`flex items-center font-mono cursor-pointer text-[13px] h-9 px-3 border-b border-border/20 transition-colors w-full text-left
                             ${isSelected ? 'bg-primary/10 border-l-2 border-l-primary' : `${config.bg} border-l-2 border-l-transparent`}
                           `}
-                          onClick={() => setSelectedLogId(isSelected ? undefined : log.id)}
-                          onDoubleClick={() => setFullscreenLogId(log.id)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              setSelectedLogId(isSelected ? undefined : log.id)
-                            }
-                          }}
+                          onClick={() =>
+                            dispatchUi({
+                              type: 'SET_SELECTED_LOG_ID',
+                              payload: isSelected ? undefined : log.id,
+                            })
+                          }
+                          onDoubleClick={() =>
+                            dispatchUi({ type: 'SET_FULLSCREEN_LOG_ID', payload: log.id })
+                          }
                           title="Click to select, double-click for fullscreen"
                         >
                           <div className="flex items-center gap-2 text-muted shrink-0 w-[100px]">
@@ -543,9 +635,10 @@ function LogsPage() {
                                 {log.traceId.slice(0, 8)}
                               </span>
                               <button
+                                type="button"
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  filterByTrace(log.traceId!)
+                                  filterByTrace(log.traceId ?? '')
                                 }}
                                 className="p-1 rounded hover:bg-dark-gray/50 text-muted hover:text-primary transition-colors ml-0.5"
                                 title={`Filter by trace ${log.traceId}`}
@@ -568,7 +661,7 @@ function LogsPage() {
                               </span>
                             </div>
                           )}
-                        </div>
+                        </button>
                       )
                     })
                   )}
@@ -583,8 +676,10 @@ function LogsPage() {
                     totalPages={totalPages}
                     totalItems={filteredLogs.length}
                     pageSize={pageSize}
-                    onPageChange={setCurrentPage}
-                    onPageSizeChange={setPageSize}
+                    onPageChange={(p) => dispatchPagination({ type: 'SET_PAGE', payload: p })}
+                    onPageSizeChange={(s) =>
+                      dispatchPagination({ type: 'SET_PAGE_SIZE', payload: s })
+                    }
                     pageSizeOptions={[25, 50, 100, 250, 500]}
                   />
                 </div>
@@ -605,7 +700,7 @@ function LogsPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => setSelectedLogId(undefined)}
+                      onClick={() => dispatchUi({ type: 'CLEAR_SELECTED_LOG' })}
                       className="h-6 w-6 p-0"
                     >
                       <X className="w-3.5 h-3.5" />
@@ -621,6 +716,7 @@ function LogsPage() {
                     <div className="text-[10px] text-muted uppercase tracking-wider mb-2 flex items-center gap-2">
                       Message
                       <button
+                        type="button"
                         onClick={() => copyToClipboard(selectedLog.message, 'message')}
                         className="p-0.5 rounded hover:bg-dark-gray/50 transition-colors"
                       >
@@ -643,7 +739,8 @@ function LogsPage() {
                       <div className="text-[10px] text-muted uppercase tracking-wider mb-2 flex items-center gap-2">
                         Trace ID
                         <button
-                          onClick={() => copyToClipboard(selectedLog.traceId!, 'traceId')}
+                          type="button"
+                          onClick={() => copyToClipboard(selectedLog.traceId ?? '', 'traceId')}
                           className="p-0.5 rounded hover:bg-dark-gray/50 transition-colors"
                         >
                           {copied === 'traceId' ? (
@@ -658,7 +755,8 @@ function LogsPage() {
                           {selectedLog.traceId}
                         </code>
                         <button
-                          onClick={() => filterByTrace(selectedLog.traceId!)}
+                          type="button"
+                          onClick={() => filterByTrace(selectedLog.traceId ?? '')}
                           className="p-1.5 rounded bg-primary/20 hover:bg-primary/30 text-primary transition-colors"
                           title="Filter by this trace"
                         >
@@ -704,6 +802,7 @@ function LogsPage() {
                           {Object.keys(selectedLog.context).length} fields
                         </span>
                         <button
+                          type="button"
                           onClick={() =>
                             copyToClipboard(JSON.stringify(selectedLog.context, null, 2), 'context')
                           }
@@ -732,7 +831,8 @@ function LogsPage() {
               {sourceCounts.map(([source, count]) => (
                 <button
                   key={source}
-                  onClick={() => setSearchQuery(source)}
+                  type="button"
+                  onClick={() => dispatchFilter({ type: 'SET_SEARCH_QUERY', payload: source })}
                   className="flex items-center gap-1.5 px-2 py-1 rounded bg-dark-gray/50 hover:bg-dark-gray transition-colors"
                 >
                   <span className="text-foreground font-medium truncate max-w-[120px]">
@@ -748,13 +848,21 @@ function LogsPage() {
 
       {/* Fullscreen Log Modal */}
       {fullscreenLog && (
+        // biome-ignore lint/a11y/noStaticElementInteractions: modal backdrop with keyboard support
         <div
+          role="presentation"
           className="fixed inset-0 bg-background/95 backdrop-blur-sm flex items-center justify-center z-50 p-8"
-          onClick={() => setFullscreenLogId(null)}
+          onClick={() => dispatchUi({ type: 'SET_FULLSCREEN_LOG_ID', payload: null })}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') dispatchUi({ type: 'SET_FULLSCREEN_LOG_ID', payload: null })
+          }}
         >
+          {/* biome-ignore lint/a11y/noStaticElementInteractions: stop propagation for modal content */}
           <div
+            role="presentation"
             className="bg-background border border-border rounded-lg shadow-xl w-full max-w-5xl max-h-full flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
           >
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-dark-gray/30">
@@ -800,7 +908,8 @@ function LogsPage() {
                   Copy JSON
                 </Button>
                 <button
-                  onClick={() => setFullscreenLogId(null)}
+                  type="button"
+                  onClick={() => dispatchUi({ type: 'SET_FULLSCREEN_LOG_ID', payload: null })}
                   className="p-2 rounded hover:bg-dark-gray transition-colors"
                 >
                   <X className="w-5 h-5" />
@@ -845,9 +954,10 @@ function LogsPage() {
                       <div className="flex items-center gap-2">
                         <code className="text-sm font-mono break-all">{fullscreenLog.traceId}</code>
                         <button
+                          type="button"
                           onClick={() => {
-                            filterByTrace(fullscreenLog.traceId!)
-                            setFullscreenLogId(null)
+                            filterByTrace(fullscreenLog.traceId ?? '')
+                            dispatchUi({ type: 'SET_FULLSCREEN_LOG_ID', payload: null })
                           }}
                           className="p-1.5 rounded bg-primary/20 hover:bg-primary/30 text-primary transition-colors shrink-0"
                           title="Filter by this trace"
@@ -893,6 +1003,7 @@ function LogsPage() {
                         {Object.keys(fullscreenLog.context).length} fields
                       </span>
                       <button
+                        type="button"
                         onClick={() =>
                           copyToClipboard(
                             JSON.stringify(fullscreenLog.context, null, 2),

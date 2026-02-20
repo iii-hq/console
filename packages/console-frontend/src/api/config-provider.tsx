@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { createContext, useContext } from 'react'
 import type { ConsoleConfig } from './config'
 import { setConfig } from './config'
 
@@ -16,94 +17,37 @@ interface ConfigProviderProps {
   children: React.ReactNode
 }
 
+async function fetchConsoleConfig(): Promise<ConsoleConfig> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 5000)
+
+  const res = await fetch('/api/config', {
+    signal: controller.signal,
+  })
+  clearTimeout(timeout)
+
+  if (!res.ok) {
+    throw new Error(`Config fetch failed: ${res.status}`)
+  }
+
+  const data: ConsoleConfig = await res.json()
+  setConfig(data)
+  return data
+}
+
 export function ConfigProvider({ children }: ConfigProviderProps) {
-  const [config, setConfigState] = useState<ConsoleConfig | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-
-    const doFetch = async () => {
-      setError(null)
-      try {
-        const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), 5000)
-
-        const res = await fetch('/api/config', {
-          signal: controller.signal,
-        })
-        clearTimeout(timeout)
-
-        if (!res.ok) {
-          throw new Error(`Config fetch failed: ${res.status}`)
-        }
-
-        const data: ConsoleConfig = await res.json()
-        if (!cancelled) {
-          setConfig(data)
-          setConfigState(data)
-        }
-      } catch (err) {
-        if (!cancelled) {
-          const message = err instanceof Error ? err.message : 'Failed to load configuration'
-          setError(message)
-        }
-      }
-    }
-
-    doFetch()
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  // Auto-retry on error
-  useEffect(() => {
-    if (!error) return
-
-    let cancelled = false
-    const controller = new AbortController()
-    let timeout: ReturnType<typeof setTimeout> | undefined
-
-    const timer = setTimeout(() => {
-      if (cancelled) return
-      setError(null)
-      timeout = setTimeout(() => controller.abort(), 5000)
-
-      fetch('/api/config', { signal: controller.signal })
-        .then((res) => {
-          clearTimeout(timeout)
-          if (!res.ok) throw new Error(`Config fetch failed: ${res.status}`)
-          return res.json()
-        })
-        .then((data: ConsoleConfig) => {
-          if (!cancelled) {
-            setConfig(data)
-            setConfigState(data)
-          }
-        })
-        .catch((err) => {
-          clearTimeout(timeout)
-          if (!cancelled) {
-            const message = err instanceof Error ? err.message : 'Failed to load configuration'
-            setError(message)
-          }
-        })
-    }, 3000)
-
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-      clearTimeout(timeout)
-      controller.abort()
-    }
-  }, [error])
+  const { data: config, error } = useQuery({
+    queryKey: ['console-config'],
+    queryFn: fetchConsoleConfig,
+    retry: true,
+    retryDelay: 3000,
+  })
 
   if (error) {
     return (
       <div className="fixed inset-0 bg-[#0A0A0A] flex flex-col items-center justify-center font-mono">
         <div className="text-[#F4F4F4] text-sm mb-2">Unable to connect to console server</div>
-        <div className="text-[#9CA3AF] text-xs mb-6">{error}</div>
+        <div className="text-[#9CA3AF] text-xs mb-6">{error.message}</div>
         <button
           type="button"
           onClick={() => window.location.reload()}
