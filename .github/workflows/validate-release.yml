@@ -83,6 +83,9 @@ jobs:
           TARGETS=(
             "x86_64-apple-darwin"
             "aarch64-apple-darwin"
+            "x86_64-pc-windows-msvc"
+            "i686-pc-windows-msvc"
+            "aarch64-pc-windows-msvc"
             "x86_64-unknown-linux-gnu"
             "x86_64-unknown-linux-musl"
             "aarch64-unknown-linux-gnu"
@@ -137,7 +140,7 @@ jobs:
           if [[ "$PASSED" == "false" ]]; then
             echo "::error::Missing artifacts: ${MISSING[*]}"
           else
-            echo "::notice::All 5 platform binaries and checksums validated"
+            echo "::notice::All 8 platform binaries and checksums validated"
           fi
 
   notify:

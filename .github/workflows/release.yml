@@ -31,7 +31,7 @@ jobs:
               - type: "section"
                 text:
                   type: "mrkdwn"
-                  text: "*Release ${{ github.ref_name }}*\n\n:hourglass_flowing_sand: Building frontend...\n:white_square: Creating release...\n:white_square: Building binaries (0/5)\n:white_square: Validating release..."
+                  text: "*Release ${{ github.ref_name }}*\n\n:hourglass_flowing_sand: Building frontend...\n:white_square: Creating release...\n:white_square: Building binaries (0/8)\n:white_square: Validating release..."
               - type: "context"
                 elements:
                   - type: "mrkdwn"
@@ -130,7 +130,7 @@ jobs:
               - type: "section"
                 text:
                   type: "mrkdwn"
-                  text: "*Release ${{ github.ref_name }}*\n\n:white_check_mark: Frontend built\n:hourglass_flowing_sand: Creating release...\n:white_square: Building binaries (0/5)\n:white_square: Validating release..."
+                  text: "*Release ${{ github.ref_name }}*\n\n:white_check_mark: Frontend built\n:hourglass_flowing_sand: Creating release...\n:white_square: Building binaries (0/8)\n:white_square: Validating release..."
               - type: "context"
                 elements:
                   - type: "mrkdwn"
@@ -151,7 +151,7 @@ jobs:
               - type: "section"
                 text:
                   type: "mrkdwn"
-                  text: "*Release ${{ github.ref_name }}* :x:\n\n:x: Frontend build failed\n:white_square: Creating release...\n:white_square: Building binaries (0/5)\n:white_square: Validating release..."
+                  text: "*Release ${{ github.ref_name }}* :x:\n\n:x: Frontend build failed\n:white_square: Creating release...\n:white_square: Building binaries (0/8)\n:white_square: Validating release..."
               - type: "context"
                 elements:
                   - type: "mrkdwn"
@@ -199,7 +199,7 @@ jobs:
               - type: "section"
                 text:
                   type: "mrkdwn"
-                  text: "*Release ${{ github.ref_name }}*\n\n:white_check_mark: Frontend built\n:white_check_mark: Release created\n:hourglass_flowing_sand: Building binaries (0/5)\n:white_square: Validating release..."
+                  text: "*Release ${{ github.ref_name }}*\n\n:white_check_mark: Frontend built\n:white_check_mark: Release created\n:hourglass_flowing_sand: Building binaries (0/8)\n:white_square: Validating release..."
               - type: "context"
                 elements:
                   - type: "mrkdwn"
@@ -222,6 +222,12 @@ jobs:
             os: macos-15-intel
           - target: aarch64-apple-darwin
             os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+          - target: i686-pc-windows-msvc
+            os: windows-latest
+          - target: aarch64-pc-windows-msvc
+            os: windows-latest
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
           - target: x86_64-unknown-linux-musl
@@ -273,6 +279,7 @@ jobs:
           bin: iii-console
           target: ${{ matrix.target }}
           tar: unix
+          zip: windows
           checksum: sha256
           manifest-path: packages/console-rust/Cargo.toml
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -292,7 +299,7 @@ jobs:
         run: |
           if [ "$BUILD_RESULT" == "success" ]; then
             echo "emoji=:white_check_mark:" >> "$GITHUB_OUTPUT"
-            echo "count=5/5" >> "$GITHUB_OUTPUT"
+            echo "count=8/8" >> "$GITHUB_OUTPUT"
           else
             echo "emoji=:warning:" >> "$GITHUB_OUTPUT"
             echo "count=partial" >> "$GITHUB_OUTPUT"
