@@ -140,7 +140,7 @@ jobs:
           if [[ "$PASSED" == "false" ]]; then
             echo "::error::Missing artifacts: ${MISSING[*]}"
           else
-            echo "::notice::All 8 platform binaries and checksums validated"
+            echo "::notice::All ${#TARGETS[@]} platform binaries and checksums validated"
           fi
 
   notify:
