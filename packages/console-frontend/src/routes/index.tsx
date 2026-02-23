@@ -2,7 +2,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import {
   Activity,
-  AlertTriangle,
   ArrowRight,
   Calendar,
   ChevronRight,
@@ -195,23 +194,14 @@ function DashboardPage() {
   const queryClient = useQueryClient()
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
 
-  const { data: statusData, isLoading: statusLoading, isError: statusError } = useQuery(statusQuery)
-  const {
-    data: functionsData,
-    isLoading: functionsLoading,
-    isError: functionsError,
-  } = useQuery(functionsQuery())
-  const {
-    data: triggersData,
-    isLoading: triggersLoading,
-    isError: triggersError,
-  } = useQuery(triggersQuery())
-  const { data: streamsData, isError: streamsError } = useQuery(streamsQuery)
+  const { data: statusData, isLoading: statusLoading } = useQuery(statusQuery)
+  const { data: functionsData, isLoading: functionsLoading } = useQuery(functionsQuery())
+  const { data: triggersData, isLoading: triggersLoading } = useQuery(triggersQuery())
+  const { data: streamsData } = useQuery(streamsQuery)
   const { data: metricsHistoryData } = useQuery(metricsHistoryQuery(100))
 
   const config = useConfig()
   const loading = statusLoading || functionsLoading || triggersLoading
-  const hasError = statusError || functionsError || triggersError || streamsError
 
   // Subscribe to real-time metrics
   useEffect(() => {
@@ -646,19 +636,6 @@ function DashboardPage() {
           </CardContent>
         </Card>
       </div>
-
-      {hasError && (
-        <div className="bg-yellow/10 border border-yellow/30 rounded-lg p-3 flex items-center gap-3">
-          <AlertTriangle className="w-5 h-5 text-yellow flex-shrink-0" />
-          <div>
-            <p className="text-sm font-medium text-yellow">Connection Issue</p>
-            <p className="text-xs text-muted">
-              Unable to connect to the iii engine. Check that it's running on the expected host and
-              port.
-            </p>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

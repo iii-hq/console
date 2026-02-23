@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { createContext, useContext } from 'react'
 import type { ConsoleConfig } from './config'
 import { setConfig } from './config'
+import { getConnectionErrorMessage } from './utils'
 
 const ConfigContext = createContext<ConsoleConfig | null>(null)
 
@@ -21,18 +22,23 @@ async function fetchConsoleConfig(): Promise<ConsoleConfig> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 5000)
 
-  const res = await fetch('/api/config', {
-    signal: controller.signal,
-  })
-  clearTimeout(timeout)
+  try {
+    const res = await fetch('/api/config', {
+      signal: controller.signal,
+    })
 
-  if (!res.ok) {
-    throw new Error(`Config fetch failed: ${res.status}`)
+    if (!res.ok) {
+      throw new Error(`Config fetch failed: ${res.status}`)
+    }
+
+    const data: ConsoleConfig = await res.json()
+    setConfig(data)
+    return data
+  } catch (error) {
+    throw new Error(getConnectionErrorMessage(error, 'Unable to fetch console configuration'))
+  } finally {
+    clearTimeout(timeout)
   }
-
-  const data: ConsoleConfig = await res.json()
-  setConfig(data)
-  return data
 }
 
 export function ConfigProvider({ children }: ConfigProviderProps) {
