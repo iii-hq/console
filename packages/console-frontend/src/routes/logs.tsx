@@ -436,41 +436,15 @@ function LogsPage() {
       </div>
 
       {!isLoading && !hasLoggingAdapter && (
-        <div className="flex-1 flex items-center justify-center p-8">
-          <div className="text-center max-w-md">
-            <div className="w-16 h-16 mb-4 mx-auto rounded-2xl bg-dark-gray border border-border flex items-center justify-center">
-              <AlertCircle className="w-8 h-8 text-yellow" />
+        <div className="flex-1 flex items-center justify-center p-12">
+          <div className="text-center max-w-xs">
+            <div className="w-10 h-10 mb-3 mx-auto rounded-lg bg-dark-gray border border-border flex items-center justify-center">
+              <AlertCircle className="w-5 h-5 text-muted" />
             </div>
-            <h3 className="text-sm font-medium mb-2">No Logging Adapter Configured</h3>
-            <p className="text-xs text-muted mb-4">
-              Configure a logging adapter in your{' '}
-              <code className="bg-dark-gray px-1 rounded">config.yaml</code> to enable log storage
-              and viewing.
+            <h3 className="text-xs font-medium mb-1 text-foreground">No logs found</h3>
+            <p className="text-[11px] text-muted leading-relaxed">
+              Configure a logging adapter in config.yaml. Logs will appear here once available.
             </p>
-            <div className="bg-dark-gray/50 rounded-lg p-4 text-left mb-4">
-              <code className="text-[10px] text-muted block">
-                <span className="text-cyan-400">modules:</span>
-                <br />
-                &nbsp;&nbsp;<span className="text-yellow">-</span>{' '}
-                <span className="text-cyan-400">class:</span> modules::observability::LoggingModule
-                <br />
-                &nbsp;&nbsp;&nbsp;&nbsp;
-                <span className="text-cyan-400">config:</span>
-                <br />
-                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                <span className="text-cyan-400">adapter:</span>
-                <br />
-                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                <span className="text-cyan-400">class:</span>{' '}
-                modules::observability::adapters::RedisLogger
-                <br />
-                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                <span className="text-cyan-400">config:</span>
-                <br />
-                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                <span className="text-cyan-400">redis_url:</span> redis://localhost:6379
-              </code>
-            </div>
           </div>
         </div>
       )}

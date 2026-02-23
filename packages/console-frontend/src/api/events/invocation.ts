@@ -1,5 +1,44 @@
 import { getDevtoolsApi } from '../config'
 
+async function extractApiError(res: Response, fallback: string): Promise<string> {
+  const contentType = res.headers.get('content-type') || ''
+
+  if (contentType.includes('application/json')) {
+    try {
+      const data = await res.json()
+      if (data && typeof data === 'object') {
+        const wrappedBody =
+          'status_code' in data &&
+          'body' in data &&
+          data.body &&
+          typeof data.body === 'object' &&
+          !Array.isArray(data.body)
+            ? (data.body as Record<string, unknown>)
+            : null
+
+        if (wrappedBody?.error && typeof wrappedBody.error === 'string') {
+          return wrappedBody.error
+        }
+
+        if ('error' in data && typeof data.error === 'string') {
+          return data.error
+        }
+
+        return JSON.stringify(wrappedBody ?? data)
+      }
+    } catch {
+      // Fall back to text below when body is not valid JSON.
+    }
+  }
+
+  try {
+    const text = await res.text()
+    return text || fallback
+  } catch {
+    return fallback
+  }
+}
+
 export async function invokeFunction(
   functionId: string,
   input?: unknown,
@@ -70,10 +109,10 @@ export async function triggerCron(
         return {
           success: false,
           error:
-            'Cron trigger endpoint not available. Add /_console/cron/trigger to DevTools module.',
+            'Cron trigger endpoint is not available in this console backend version. Update iii-console to enable manual cron trigger support.',
         }
       }
-      const error = await res.text()
+      const error = await extractApiError(res, 'Trigger failed')
       return { success: false, error: error || 'Trigger failed' }
     }
   } catch (err) {

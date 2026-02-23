@@ -1,6 +1,7 @@
 use iii_sdk::III;
 use serde_json::{json, Value};
 use std::collections::HashSet;
+use std::time::{SystemTime, UNIX_EPOCH};
 use std::time::Duration;
 
 use crate::bridge::error::{error_response, success_response};
@@ -608,6 +609,116 @@ async fn handle_invoke(bridge: &III, input: Value) -> Value {
     }
 }
 
+async fn handle_cron_trigger(bridge: &III, input: Value) -> Value {
+    let body = input.get("body").unwrap_or(&input);
+
+    let trigger_id = body
+        .get("trigger_id")
+        .and_then(|v| v.as_str())
+        .or_else(|| input.get("trigger_id").and_then(|v| v.as_str()));
+
+    let trigger_id = match trigger_id {
+        Some(id) if !id.is_empty() => id.to_string(),
+        _ => {
+            return error_response(iii_sdk::IIIError::Handler(
+                "Missing trigger_id in request".to_string(),
+            ))
+        }
+    };
+
+    let provided_function_id = body
+        .get("function_id")
+        .and_then(|v| v.as_str())
+        .or_else(|| input.get("function_id").and_then(|v| v.as_str()))
+        .map(|v| v.to_string());
+
+    let function_id = if let Some(function_id) = provided_function_id {
+        function_id
+    } else {
+        let triggers_data = match bridge
+            .call_with_timeout(
+                "engine::triggers::list",
+                json!({ "include_internal": true }),
+                Duration::from_secs(5),
+            )
+            .await
+        {
+            Ok(data) => data,
+            Err(err) => return error_response(err),
+        };
+
+        let trigger_match = triggers_data
+            .get("triggers")
+            .and_then(|v| v.as_array())
+            .and_then(|triggers| {
+                triggers.iter().find(|trigger| {
+                    trigger
+                        .get("id")
+                        .and_then(|v| v.as_str())
+                        .map(|id| id == trigger_id)
+                        .unwrap_or(false)
+                })
+            });
+
+        let trigger = match trigger_match {
+            Some(trigger) => trigger,
+            None => {
+                return error_response(iii_sdk::IIIError::Handler(format!(
+                    "Cron trigger '{}' not found",
+                    trigger_id
+                )))
+            }
+        };
+
+        let trigger_type = trigger
+            .get("trigger_type")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
+
+        if trigger_type != "cron" {
+            return error_response(iii_sdk::IIIError::Handler(format!(
+                "Trigger '{}' is not a cron trigger",
+                trigger_id
+            )));
+        }
+
+        match trigger.get("function_id").and_then(|v| v.as_str()) {
+            Some(id) if !id.is_empty() => id.to_string(),
+            _ => {
+                return error_response(iii_sdk::IIIError::Handler(format!(
+                    "Cron trigger '{}' has no function_id",
+                    trigger_id
+                )))
+            }
+        }
+    };
+
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs().to_string())
+        .unwrap_or_else(|_| "0".to_string());
+    let payload = json!({
+        "trigger": "cron",
+        "job_id": trigger_id,
+        "scheduled_time": now,
+        "actual_time": now,
+        "manual": true,
+        "source": "console"
+    });
+
+    match bridge
+        .call_with_timeout(&function_id, payload, Duration::from_secs(30))
+        .await
+    {
+        Ok(result) => success_response(json!({
+            "trigger_id": trigger_id,
+            "function_id": function_id,
+            "result": result
+        })),
+        Err(err) => error_response(err),
+    }
+}
+
 async fn handle_flow_config_save(bridge: &III, input: Value) -> Value {
     let body = input.get("body").cloned().unwrap_or(input.clone());
 
@@ -786,5 +897,11 @@ pub fn register_functions(bridge: &III) {
     bridge.register_function("engine::console::invoke", move |input| {
         let bridge = b.clone();
         async move { Ok(handle_invoke(&bridge, input).await) }
+    });
+
+    let b = bridge.clone();
+    bridge.register_function("engine::console::cron_trigger", move |input| {
+        let bridge = b.clone();
+        async move { Ok(handle_cron_trigger(&bridge, input).await) }
     });
 }

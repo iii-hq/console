@@ -1095,6 +1095,11 @@ function TriggersPage() {
                   }
                   const expression = config.expression || ''
                   const { readable, nextRun } = parseCronExpression(expression)
+                  const canRunNow = Boolean(selectedTrigger.id)
+                  const shouldResolveFunction = !selectedTrigger.function_id
+                  const runNowDisabledReason = canRunNow
+                    ? null
+                    : 'This trigger is missing an id and cannot be run manually.'
 
                   return (
                     <>
@@ -1150,7 +1155,7 @@ function TriggersPage() {
                         </div>
                         <Button
                           className="w-full h-9"
-                          disabled={invoking}
+                          disabled={invoking || !canRunNow}
                           onClick={() => invokeCron(selectedTrigger)}
                         >
                           {invoking ? (
@@ -1165,6 +1170,15 @@ function TriggersPage() {
                             </>
                           )}
                         </Button>
+                        {!canRunNow && (
+                          <div className="mt-2 text-[10px] text-error">{runNowDisabledReason}</div>
+                        )}
+                        {canRunNow && shouldResolveFunction && (
+                          <div className="mt-2 text-[10px] text-muted">
+                            Function id is missing in this trigger payload; the console will resolve
+                            it by trigger id.
+                          </div>
+                        )}
                       </div>
                     </>
                   )

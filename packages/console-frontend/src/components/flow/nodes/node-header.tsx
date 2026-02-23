@@ -12,6 +12,25 @@ const iconStyles: Record<Variant, string> = {
   state: 'bg-emerald-500/20 text-emerald-400',
 }
 
+function toVariant(value?: string): Variant {
+  const normalized = value?.trim().toLowerCase()
+  switch (normalized) {
+    case 'event':
+    case 'api':
+    case 'noop':
+    case 'cron':
+    case 'queue':
+    case 'state':
+      return normalized
+    case 'webhook':
+      return 'api'
+    case 'schedule':
+      return 'cron'
+    default:
+      return 'event'
+  }
+}
+
 function NodeIcon({ variant }: { variant: Variant }) {
   const cls = 'w-4 h-4'
   switch (variant) {
@@ -27,6 +46,8 @@ function NodeIcon({ variant }: { variant: Variant }) {
       return <ListOrdered className={cls} />
     case 'state':
       return <Database className={cls} />
+    default:
+      return <Waypoints className={cls} />
   }
 }
 
@@ -49,28 +70,30 @@ const triggerOrder: Record<string, number> = {
 export function NodeHeader({ text, variant, children, triggers }: Props) {
   const showMultiple = triggers && triggers.length > 1
   const sorted = showMultiple
-    ? [...triggers].sort((a, b) => (triggerOrder[a.type] ?? 5) - (triggerOrder[b.type] ?? 5))
+    ? [...triggers].sort(
+        (a, b) => (triggerOrder[toVariant(a.type)] ?? 5) - (triggerOrder[toVariant(b.type)] ?? 5),
+      )
     : triggers
 
   return (
     <div className="flex items-center gap-2 p-2 border-b border-[#1D1D1D]">
       {showMultiple ? (
         <div className="flex gap-1">
-          {sorted?.map((trigger) => (
-            <div
-              key={trigger.type}
-              className={clsx(
-                'rounded-md p-1.5',
-                iconStyles[trigger.type as Variant] || iconStyles.event,
-              )}
-            >
-              <NodeIcon variant={trigger.type as Variant} />
-            </div>
-          ))}
+          {sorted?.map((trigger, index) => {
+            const triggerVariant = toVariant(trigger.type)
+            return (
+              <div
+                key={`${trigger.type}-${index}`}
+                className={clsx('rounded-md p-1.5', iconStyles[triggerVariant])}
+              >
+                <NodeIcon variant={triggerVariant} />
+              </div>
+            )
+          })}
         </div>
       ) : (
-        <div className={clsx('rounded-md p-1.5', iconStyles[variant])}>
-          <NodeIcon variant={variant} />
+        <div className={clsx('rounded-md p-1.5', iconStyles[toVariant(variant)])}>
+          <NodeIcon variant={toVariant(variant)} />
         </div>
       )}
       <div className="flex flex-1 justify-between items-start gap-3">

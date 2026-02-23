@@ -90,6 +90,11 @@ pub fn register_triggers(bridge: &III) -> Result<(), IIIError> {
             "_console/flows/config/:flow_id",
             "POST",
         ),
+        (
+            "engine::console::cron_trigger",
+            "_console/cron/trigger",
+            "POST",
+        ),
         // Function invocation endpoint
         ("engine::console::invoke", "_console/invoke", "POST"),
     ];
