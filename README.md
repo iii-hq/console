@@ -1,23 +1,23 @@
 # iii-console
 
-Developer and operations console for the **iii engine**. Built as a standalone binary that embeds a React frontend and bridges to the iii engine via REST, WebSocket, and SDK connections.
+Developer and operations console for the [iii engine](https://github.com/iii-hq/iii).
 
-## Installation
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-### Install script (recommended)
+Built as a standalone binary that embeds a React frontend and connects to the iii engine via HTTP, WebSocket, and SDK connections.
+
+## Install
 
 ```bash
 curl -fsSL https://install.iii.dev/console/main/install.sh | bash
 ```
 
-Install a specific version:
-
+Specific version:
 ```bash
 curl -fsSL https://install.iii.dev/console/main/install.sh | bash -s -- -v 0.1.5
 ```
 
-Install to a custom directory:
-
+Custom directory:
 ```bash
 INSTALL_DIR=/usr/local/bin curl -fsSL https://install.iii.dev/console/main/install.sh | bash
 ```
@@ -26,7 +26,7 @@ The script auto-detects your platform, downloads the correct binary, verifies th
 
 ### Manual download
 
-Download the latest release binary for your platform from the [Releases](https://github.com/iii-hq/console/releases) page.
+Download the latest release binary from the [Releases](https://github.com/iii-hq/console/releases) page.
 
 | Platform | Target |
 |----------|--------|
@@ -40,16 +40,10 @@ Each release includes `.sha256` checksum files for verification.
 
 ### macOS Gatekeeper
 
-macOS will block unsigned binaries downloaded from the internet. After downloading, remove the quarantine attribute:
+macOS blocks unsigned binaries downloaded from the internet. Remove the quarantine attribute:
 
 ```bash
 xattr -d com.apple.quarantine ./iii-console
-```
-
-Then run normally:
-
-```bash
-./iii-console --engine-host localhost
 ```
 
 ## Usage
@@ -65,7 +59,7 @@ iii-console [OPTIONS]
 | `-p, --port <port>` | Console UI port | `3113` |
 | `--host <host>` | Host to bind the console server to | `127.0.0.1` |
 | `--engine-host <host>` | iii engine host | `127.0.0.1` |
-| `--engine-port <port>` | Engine REST API port | `3111` |
+| `--engine-port <port>` | Engine HTTP API port | `3111` |
 | `--ws-port <port>` | Engine WebSocket port | `3112` |
 | `--bridge-port <port>` | Engine bridge WebSocket port | `49134` |
 | `--no-otel` | Disable OpenTelemetry tracing, metrics, and logs export | `false` |
@@ -96,27 +90,17 @@ This is a pnpm monorepo with two packages:
 ### Frontend development
 
 ```bash
-# Install dependencies
 pnpm install
-
-# Start dev server with hot reload (port 5173)
-pnpm run dev
-
-# Lint and format
-pnpm run lint
+pnpm run dev       # dev server with hot reload (port 5173)
+pnpm run lint      # lint and format
 ```
 
 ### Rust binary
 
 ```bash
-# Build everything (frontend + binary)
-pnpm run build
-
-# Build binary only (skips frontend rebuild)
-pnpm run build:rust
-
-# Run the binary
-pnpm run start:rust
+pnpm run build       # build everything (frontend + binary)
+pnpm run build:rust  # build binary only (skips frontend rebuild)
+pnpm run start:rust  # run the binary
 ```
 
 ### Testing with iii-example
@@ -139,4 +123,4 @@ Requires Redis on `localhost:6379`.
 
 ## License
 
-Apache-2.0
+Apache 2.0
