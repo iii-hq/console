@@ -418,7 +418,7 @@ async fn handle_state_item_set(bridge: &III, input: Value) -> Value {
     let state_input = json!({
         "scope": group_id,
         "key": item_id,
-        "data": data
+        "value": data
     });
 
     match bridge
@@ -748,7 +748,7 @@ async fn handle_flow_config_save(bridge: &III, input: Value) -> Value {
     let state_input = json!({
         "scope": FLOW_CONFIG_GROUP,
         "key": flow_id,
-        "data": data
+        "value": data
     });
 
     match bridge
