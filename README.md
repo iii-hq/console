@@ -8,6 +8,18 @@ Built as a standalone binary that embeds a React frontend and connects to the ii
 
 ## Install
 
+### Via iii-cli (recommended)
+
+If you have [iii-cli](https://github.com/iii-hq/iii-cli) installed:
+
+```bash
+iii-cli console
+```
+
+iii-cli downloads, updates, and launches the console automatically.
+
+### Standalone install
+
 ```bash
 curl -fsSL https://install.iii.dev/console/main/install.sh | bash
 ```
